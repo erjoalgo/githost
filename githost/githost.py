@@ -128,7 +128,6 @@ SHA256:br9IjFspm1vxR3iA35FWE+4VTyz1hYVLIE2t1/CeyWQ (DSA)
 
     # TODO(ealfonso) rename to key_post
     def post_key(self, pubkey_path, pubkey_label, **kwargs):
-        assert user
         pubkey = open(pubkey_path).read()
         data = {"key": pubkey, "title": pubkey_label}
         url = "/user/keys"
