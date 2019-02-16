@@ -196,8 +196,7 @@ def main():
     parser_postkey.add_argument("-l", "--pubkey-label",
                                 default="githost-{}".format(platform.node()),
                                 help = "label for the public key")
-    parser_postkey.add_argument("-r", "--repo-name", default=os.path.basename(os.getcwd()),
-                                help = "repository name")
+    parser_postkey.add_argument("-r", "--repo-name", help = "repository name")
     parser_postkey.set_defaults(func="post_key")
 
     parser_listrepos = subparsers.add_parser("listrepos", help="list available repositories")
