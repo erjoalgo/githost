@@ -155,13 +155,13 @@ class Bitbucket(Service):
         assert repo_name
         pubkey = open(pubkey_path).read()
         data = {"key": pubkey.strip(), "label": pubkey_label}
-        user = self.user or read_user()
+        user = self.user()
         url = "/repositories/{}/{}/deploy-keys".format(self.user(), repo_name)
         req = requests.Request("POST", url, json=data)
         self.req_send(req)
 
     def list_repos(self, **kwargs):
-        user = self.user or read_user()
+        user = self.user()
         url = "/repositories/{}".format(self.user())
         req = requests.Request("GET", url)
         self.req_send(req)
