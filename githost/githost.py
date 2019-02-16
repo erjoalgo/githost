@@ -81,6 +81,8 @@ class Service(object):
         req.auth = (self.user(), self.password())
 
     def req_send(self, req, add_auth=True):
+        # TODO(ealfonso) only enhance if missing host
+        req.url = self.base + req.url
         if add_auth:
             self.req_auth(req)
         resp = requests.Session().send(req.prepare())
@@ -118,7 +120,7 @@ SHA256:br9IjFspm1vxR3iA35FWE+4VTyz1hYVLIE2t1/CeyWQ (DSA)
         assert user
         pubkey = open(pubkey_path).read()
         data = {"key": pubkey, "title": pubkey_label}
-        url = "{}/user/keys".format(self.base)
+        url = "/user/keys"
         req = requests.Request("POST", url, json=data)
         self.req_send(req)
 
@@ -133,7 +135,7 @@ SHA256:br9IjFspm1vxR3iA35FWE+4VTyz1hYVLIE2t1/CeyWQ (DSA)
                 "has_issues": True,
                 "has_projects": True,
                 "has_wiki": True}
-        url = "{}/user/repos".format(self.base)
+        url = "/user/repos"
         req = Request("POST", url, json=data)
         self.req_send(req)
 
@@ -151,14 +153,13 @@ class Bitbucket(Service):
         pubkey = open(pubkey_path).read()
         data = {"key": pubkey.strip(), "label": pubkey_label}
         user = self.user or read_user()
-        url = "{}/repositories/{}/{}/deploy-keys".format(
-            self.base, self.user(), repo_name)
+        url = "/repositories/{}/{}/deploy-keys".format(self.user(), repo_name)
         req = requests.Request("POST", url, json=data)
         self.req_send(req)
 
     def list_repos(self, **kwargs):
         user = self.user or read_user()
-        url = "{}/repositories/{}".format(self.base, self.user())
+        url = "/repositories/{}".format(self.user())
         req = requests.Request("GET", url)
         self.req_send(req)
 
