@@ -119,6 +119,21 @@ SHA256:br9IjFspm1vxR3iA35FWE+4VTyz1hYVLIE2t1/CeyWQ (DSA)
         req = requests.Request("POST", url, json=data)
         self.req_send(req)
 
+    def repo_create(self, repo_name, description, private=True, **kwargs):
+        assert repo_name
+        if not description:
+            description = interactive_edit("# enter {} description".format(repo_name)).strip()
+
+        data = {"name": repo_name,
+                "description": description,
+                "private": private,
+                "has_issues": True,
+                "has_projects": True,
+                "has_wiki": True}
+        url = "{}/user/repos".format(self.base)
+        req = Request("POST", url, json=data)
+        self.req_send(req)
+
 
 class Bitbucket(Service):
     name = "bitbucket"
@@ -182,6 +197,12 @@ def main():
 
     parser_listrepos = subparsers.add_parser("listrepos", help="list available repositories")
     parser_listrepos.set_defaults(func="list_repos")
+
+    parser_repocreate = subparsers.add_parser("repocreate", help="create a new repository")
+    parser_repocreate.add_argument("-d", "--description", help = "repo description")
+    parser_repocreate.add_argument("-r", "--repo-name", default=os.path.basename(os.getcwd()),
+                                   help = "repository name")
+    parser_repocreate.set_defaults(func="repo_create")
 
     args=parser.parse_args()
 
