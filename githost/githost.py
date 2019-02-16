@@ -44,7 +44,6 @@ class Auth(object):
     def __init__(self, user=None, passwd=None, authinfo=None):
         self.user = user
         self.passwd = passwd
-        # self._token = token
         self.authinfo = authinfo
 
 
@@ -98,7 +97,6 @@ class Github(Service):
     base = "https://api.github.com"
 
     def __init__(self, auth):
-        # super(Github, self).__init__()
         self.auth = auth
         self.fingerprints = """
         These are GitHub's public key fingerprints (in hexadecimal format):
@@ -155,13 +153,7 @@ class Bitbucket(Service):
         user = self.user or read_user()
         url = "{}/repositories/{}/{}/deploy-keys".format(
             self.base, self.user(), repo_name)
-
         req = requests.Request("POST", url, json=data)
-        # req.headers["Content-type"] = "application/json"
-        # req.headers["Accept-Encoding"] = "identity"
-        # del req.headers["Accept-Encoding"]
-        # req.headers["Accept"] = "*/*"
-        # req.headers["User-Agent"] = "curl/7.52.1"
         self.req_send(req)
 
     def list_repos(self, **kwargs):
@@ -211,13 +203,7 @@ def main():
     args=parser.parse_args()
 
     if args.verbose:
-        print ("debug on...")
         logger.setLevel(logging.DEBUG)
-        # requests_log = logging.getLogger("requests.packages.urllib3")
-        # requests_log.setLevel(logging.DEBUG)
-        # requests_log.propagate = True
-        # httplib.HTTPConnection.debuglevel = 2
-
 
     auth = Auth(user=args.username, authinfo=args.authinfo)
     service = SERVICES[args.service](auth=auth)
