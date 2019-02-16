@@ -75,7 +75,7 @@ class Service(object):
 
     def password(self, prompt="enter password: "):
         if not self.auth.passwd and not self.read_authinfo():
-            self.auth.passwd = getpass.getpass("enter {}: ".format(auth_type))
+            self.auth.passwd = getpass.getpass(prompt)
         return self.auth.passwd
 
     def req_auth(self, req):
