@@ -111,6 +111,10 @@ SHA256:nThbg6kXUpJWGl7E1IGOCspRomTxdCARLviKw6E5SY8 (RSA)
 SHA256:br9IjFspm1vxR3iA35FWE+4VTyz1hYVLIE2t1/CeyWQ (DSA)
         """
 
+    def req_auth(self, req):
+        super(Github, self).req_auth(req)
+        req.headers["User-Agent"]="anon"
+
     def post_key(self, pubkey_path, pubkey_label, **kwargs):
         assert user
         pubkey = open(pubkey_path).read()
