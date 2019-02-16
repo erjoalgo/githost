@@ -70,13 +70,17 @@ class Service(object):
             # TODO(ealfonso) support changing token order
             pat = re.compile("^machine {} login (.*) password (.*)"
                              .format(re.escape(parsed.netloc)))
-            with open(authinfo, "r") as fh:
-                for line in fh:
-                    m = pat.match(line)
-                    if m:
-                        auth.user = m.group(1)
-                        auth.passwd = m.group(2)
-                        return auth
+            try:
+                lines = open(authinfo).read().split("\n")
+            except IOError as ex:
+                logging.error("failed to read .autinfo: %s", str(ex))
+                return None
+            for line in lines:
+                m = pat.match(line)
+                if m:
+                    auth.user = m.group(1)
+                    auth.passwd = m.group(2)
+                    return auth
 
     def user(self, prompt="enter username: "):
         if not self.auth.user and not self.read_authinfo():
