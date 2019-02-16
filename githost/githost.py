@@ -135,7 +135,7 @@ SHA256:br9IjFspm1vxR3iA35FWE+4VTyz1hYVLIE2t1/CeyWQ (DSA)
         self.req_send(req)
 
     def repo_create(self, repo_name, description, private=True, **kwargs):
-        assert repo_name
+        repo_name = repo_name or input("repo name: ")
         if not description:
             description = interactive_edit("# enter {} description".format(repo_name)).strip()
 
@@ -177,7 +177,7 @@ class Bitbucket(Service):
         self.req_send(req)
 
     def repo_create(self, repo_name, description, private=True, **kwargs):
-        assert repo_name
+        repo_name = repo_name or input("repo name: ")
         if not description:
             description = interactive_edit("# enter {} description".format(repo_name)).strip()
 
