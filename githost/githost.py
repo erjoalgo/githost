@@ -236,7 +236,7 @@ def main():
     parser_postkey.add_argument("-l", "--pubkey-label",
                                 default="githost-{}".format(platform.node()),
                                 help="label for the public key")
-    parser_postkey.add_argument("-t", "--key_type", default="deploy", help="bitbucket key type")
+    parser_postkey.add_argument("-t", "--key_type", help="bitbucket key type")
     parser_postkey.add_argument("-r", "--repo-name", help="repository name")
     parser_postkey.set_defaults(func="post_key")
 
