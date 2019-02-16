@@ -97,7 +97,7 @@ class Github(Service):
     name = "github"
     base = "https://api.github.com"
 
-    def __init__(auth):
+    def __init__(self, auth):
         # super(Github, self).__init__()
         self.auth = auth
         self.fingerprints = """
