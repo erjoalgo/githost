@@ -2,6 +2,8 @@
 
 """A command-line interface to git repository hosting services"""
 
+from __future__ import print_function
+
 import argparse
 import platform
 import os
@@ -15,6 +17,7 @@ from urlparse import urlparse
 import requests
 from requests import Request, Session
 import httplib
+import subprocess
 import traceback
 
 
@@ -26,16 +29,16 @@ except:
     traceback.print_exc()
     __version__ = "unknown"
 
-def read_choice(choices, prompt="select: "):
-    while True:
-        print ("\n".join("{}: {}".format(i, choice)
-                         for (i, choice) in enumerate(choices)))
-        resp = input(prompt)
-        try:
-            idx = int(resp)
-            return choices[idx]
-        except:
-            pass
+def interactive_edit(initial_contents):
+    tmp = os.path.expanduser("~/.githost.tmp")
+    editor = os.getenv("VISUAL") or os.getenv("EDITOR") or "vi"
+    with open(tmp, "w") as fh:
+        print(initial_contents, file=fh)
+
+    subprocess.call([editor, tmp])
+
+    contents = open(tmp, "r").read()
+    return contents
 
 class Auth(object):
     def __init__(self, user=None, passwd=None, authinfo=None):
