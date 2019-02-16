@@ -161,12 +161,23 @@ class Bitbucket(Service):
     def __init__(self, auth):
         self.auth = auth
 
-    def post_key(self, pubkey_path, pubkey_label, repo_name, **kwargs):
-        assert repo_name
-        pubkey = open(pubkey_path).read()
-        data = {"key": pubkey.strip(), "label": pubkey_label}
-        user = self.user()
-        url = "/repositories/{}/{}/deploy-keys".format(self.user(), repo_name)
+    def post_key(self, pubkey_path, pubkey_label, key_type=None, repo_name=None, **kwargs):
+        pubkey = open(pubkey_path).read().strip()
+
+        key_types = ("deploy", "ssh")
+        key_type = key_type or read_choice(key_types)
+        if not key_type in key_types:
+            raise Exception("Must specificy key type: {{}}".format(",".join(key_types)))
+
+        data = {"key": pubkey, "label": pubkey_label}
+        if key_type == "deploy":
+            repo_name = repo_name or input("deploy key repository name: ")
+            # if not repo_name:
+                # raise Exception("Must specify repo name for deploy key post")
+            url = "/repositories/{}/{}/deploy-keys".format(self.user(), repo_name)
+        elif key_type == "ssh":
+            url = "/users/{}/ssh-keys".format(self.user())
+
         req = requests.Request("POST", url, json=data)
         self.req_send(req)
 
