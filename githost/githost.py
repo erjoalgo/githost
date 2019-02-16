@@ -40,6 +40,17 @@ def interactive_edit(initial_contents):
     contents = open(tmp, "r").read()
     return contents
 
+def read_choice(choices, prompt="select: "):
+    while True:
+        print ("\n".join("{}: {}".format(i, choice)
+                         for (i, choice) in enumerate(choices)))
+        resp = input(prompt)
+        try:
+            idx = int(resp)
+            return choices[idx]
+        except:
+            pass
+
 class Auth(object):
     def __init__(self, user=None, passwd=None, authinfo=None):
         self.user = user
