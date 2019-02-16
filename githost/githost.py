@@ -166,6 +166,19 @@ class Bitbucket(Service):
         req = requests.Request("GET", url)
         self.req_send(req)
 
+    def repo_create(self, repo_name, description, private=True, **kwargs):
+        assert repo_name
+        if not description:
+            description = interactive_edit("# enter {} description".format(repo_name)).strip()
+
+        data = {
+            # "project": {"key": repo_name},
+            "description": description,
+            "scm": "git",
+            "private": private}
+        url = "/repositories/{}/{}".format(self.user(), repo_name)
+        req = Request("POST", url, json=data)
+        self.req_send(req)
 
 SERVICES = {Github.name: Github,
             Bitbucket.name: Bitbucket}
