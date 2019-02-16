@@ -139,6 +139,9 @@ SHA256:br9IjFspm1vxR3iA35FWE+4VTyz1hYVLIE2t1/CeyWQ (DSA)
         req = Request("POST", url, json=data)
         self.req_send(req)
 
+    def list_repos(self, **kwargs):
+        self.req_send(Request("GET", "/user/repos"))
+
 
 class Bitbucket(Service):
     name = "bitbucket"
