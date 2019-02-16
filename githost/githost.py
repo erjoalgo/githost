@@ -96,8 +96,8 @@ class Service(object):
         req.auth = (self.user(), self.password())
 
     def req_send(self, req, add_auth=True):
-        # TODO(ealfonso) only enhance if missing host
-        req.url = self.base + req.url
+        if not urlparse(req.url).netloc:
+            req.url = self.base + req.url
         if add_auth:
             self.req_auth(req)
         resp = requests.Session().send(req.prepare())
