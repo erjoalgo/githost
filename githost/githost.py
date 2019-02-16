@@ -115,6 +115,7 @@ SHA256:br9IjFspm1vxR3iA35FWE+4VTyz1hYVLIE2t1/CeyWQ (DSA)
         super(Github, self).req_auth(req)
         req.headers["User-Agent"]="anon"
 
+    # TODO(ealfonso) rename to key_post
     def post_key(self, pubkey_path, pubkey_label, **kwargs):
         assert user
         pubkey = open(pubkey_path).read()
