@@ -257,7 +257,7 @@ def main():
     auth = Auth(user=args.username, authinfo=args.authinfo)
     service = SERVICES[args.service](auth=auth)
     fn = getattr(service, args.func)
-    print (args)
+    logger.debug(args)
     fn(**vars(args))
 
 if __name__ == "__main__":
