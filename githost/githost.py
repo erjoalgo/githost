@@ -11,15 +11,13 @@ import logging
 import getpass
 import re
 import json
-import traceback
 from urlparse import urlparse
-
-import requests
-from requests import Request, Session
-import httplib
 import subprocess
 import traceback
+import httplib
 
+import requests
+from requests import Request
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +57,8 @@ class Auth(object):
 
 
 class Service(object):
+    name = None
+    base = None
     def __init__(self, auth):
         self.auth = auth
 
@@ -110,7 +110,7 @@ class Github(Service):
     base = "https://api.github.com"
 
     def __init__(self, auth):
-        self.auth = auth
+        super(Github, self).__init__(auth)
         self.fingerprints = """
         These are GitHub's public key fingerprints (in hexadecimal format):
 
@@ -124,10 +124,11 @@ SHA256:br9IjFspm1vxR3iA35FWE+4VTyz1hYVLIE2t1/CeyWQ (DSA)
 
     def req_auth(self, req):
         super(Github, self).req_auth(req)
-        req.headers["User-Agent"]="anon"
+        req.headers["User-Agent"] = "anon"
 
     # TODO(ealfonso) rename to key_post
     def post_key(self, pubkey_path, pubkey_label, **kwargs):
+        del kwargs
         pubkey = open(pubkey_path).read()
         data = {"key": pubkey, "title": pubkey_label}
         url = "/user/keys"
@@ -135,6 +136,7 @@ SHA256:br9IjFspm1vxR3iA35FWE+4VTyz1hYVLIE2t1/CeyWQ (DSA)
         self.req_send(req)
 
     def repo_create(self, repo_name, description, private=True, **kwargs):
+        del kwargs
         repo_name = repo_name or input("repo name: ")
         if not description:
             description = interactive_edit("# enter {} description".format(repo_name)).strip()
@@ -150,6 +152,7 @@ SHA256:br9IjFspm1vxR3iA35FWE+4VTyz1hYVLIE2t1/CeyWQ (DSA)
         self.req_send(req)
 
     def list_repos(self, **kwargs):
+        del kwargs
         self.req_send(Request("GET", "/user/repos"))
 
 
@@ -159,9 +162,11 @@ class Bitbucket(Service):
     # base = "http://localhost:1231"
 
     def __init__(self, auth):
+        super(Bitbucket, self).__init__(auth)
         self.auth = auth
 
     def post_key(self, pubkey_path, pubkey_label, key_type=None, repo_name=None, **kwargs):
+        del kwargs
         pubkey = open(pubkey_path).read().strip()
 
         key_types = ("deploy", "ssh")
@@ -182,12 +187,13 @@ class Bitbucket(Service):
         self.req_send(req)
 
     def list_repos(self, **kwargs):
-        user = self.user()
+        del kwargs
         url = "/repositories/{}".format(self.user())
         req = requests.Request("GET", url)
         self.req_send(req)
 
     def repo_create(self, repo_name, description, private=True, **kwargs):
+        del kwargs
         repo_name = repo_name or input("repo name: ")
         if not description:
             description = interactive_edit("# enter {} description".format(repo_name)).strip()
@@ -208,11 +214,11 @@ def main():
     parser = argparse.ArgumentParser(fromfile_prefix_chars='@')
     parser.add_argument("-s", "--service", choices=SERVICES.keys())
     # help = "one of {}".format(" ".join(SERVICES.keys())))
-    parser.add_argument("-a", "--authinfo", help = ".authinfo or .netrc file path",
+    parser.add_argument("-a", "--authinfo", help=".authinfo or .netrc file path",
                         default=os.path.expanduser("~/.authinfo"))
-    parser.add_argument("-u", "--username", help = "user name for the selected service")
+    parser.add_argument("-u", "--username", help="user name for the selected service")
     parser.add_argument("-f", "--fingerprints",
-                        help = "display fingerprints of the selected service")
+                        help="display fingerprints of the selected service")
     parser.add_argument("-v", "--verbose", action="store_true")
     parser.add_argument("--version", action="version", version=__version__)
 
@@ -222,24 +228,24 @@ def main():
     parser_postkey = subparsers.add_parser("postkey", help="post an ssh key")
     parser_postkey.add_argument("-p", "--pubkey-path",
                                 default=os.path.expanduser("~/.ssh/id_rsa.pub"),
-                                help = "path to ssh public key file")
+                                help="path to ssh public key file")
     parser_postkey.add_argument("-l", "--pubkey-label",
                                 default="githost-{}".format(platform.node()),
-                                help = "label for the public key")
-    parser_postkey.add_argument("-t", "--key_type", default="deploy", help = "bitbucket key type")
-    parser_postkey.add_argument("-r", "--repo-name", help = "repository name")
+                                help="label for the public key")
+    parser_postkey.add_argument("-t", "--key_type", default="deploy", help="bitbucket key type")
+    parser_postkey.add_argument("-r", "--repo-name", help="repository name")
     parser_postkey.set_defaults(func="post_key")
 
     parser_listrepos = subparsers.add_parser("listrepos", help="list available repositories")
     parser_listrepos.set_defaults(func="list_repos")
 
     parser_repocreate = subparsers.add_parser("repocreate", help="create a new repository")
-    parser_repocreate.add_argument("-d", "--description", help = "repo description")
+    parser_repocreate.add_argument("-d", "--description", help="repo description")
     parser_repocreate.add_argument("-r", "--repo-name", default=os.path.basename(os.getcwd()),
-                                   help = "repository name")
+                                   help="repository name")
     parser_repocreate.set_defaults(func="repo_create")
 
-    args=parser.parse_args()
+    args = parser.parse_args()
 
     if args.verbose:
         logger.setLevel(logging.DEBUG)
