@@ -15,6 +15,7 @@ from urlparse import urlparse
 import requests
 from requests import Request, Session
 import httplib
+import traceback
 
 
 logger = logging.getLogger(__name__)
@@ -22,7 +23,7 @@ logger = logging.getLogger(__name__)
 try:
     from ._version import __version__
 except:
-    trackeback.print_exc()
+    traceback.print_exc()
     __version__ = "unknown"
 
 def read_choice(choices, prompt="select: "):
