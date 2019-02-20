@@ -195,7 +195,6 @@ class Bitbucket(Service):
 
     def __init__(self, auth):
         super(Bitbucket, self).__init__(auth)
-        self.auth = auth
 
     def post_key(self, pubkey_path, pubkey_label, key_type=None, repo_name=None, **kwargs):
         del kwargs
