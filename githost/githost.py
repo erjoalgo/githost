@@ -66,10 +66,10 @@ class Service(object):
         auth = self.auth
         authinfo = auth.authinfo
         if authinfo and os.path.exists(authinfo):
-            parsed = urlparse(self.base)
+            machine = self.api_host()
             # TODO(ealfonso) support changing token order
             pat = re.compile("^machine {} login (.*) password (.*)"
-                             .format(re.escape(parsed.netloc)))
+                             .format(re.escape(machine)))
             try:
                 lines = open(authinfo).read().split("\n")
             except IOError as ex:
@@ -81,6 +81,9 @@ class Service(object):
                     auth.user = m.group(1)
                     auth.passwd = m.group(2)
                     return auth
+
+    def api_host(self):
+        return urlparse(self.base).netloc
 
     def user(self, prompt="enter username: "):
         if not self.auth.user and not self.read_authinfo():
