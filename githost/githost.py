@@ -241,8 +241,9 @@ class Bitbucket(Service):
         clone_url = "ssh://git@bitbucket.com/{}/{}".format(self.user(), repo_name)
         git_add_remote(clone_url)
 
-SERVICES = {Github.name: Github,
-            Bitbucket.name: Bitbucket}
+SERVICES = dict((service.name, service)
+                for service  in
+                [Github, Bitbucket])
 
 def main():
     parser = argparse.ArgumentParser(fromfile_prefix_chars='@')
