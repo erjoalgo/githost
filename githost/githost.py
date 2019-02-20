@@ -49,6 +49,11 @@ def read_choice(choices, prompt="select: "):
         except:
             pass
 
+def call(cmd):
+    ret = subprocess.call(cmd)
+    if ret != 0:
+        raise Exception("non-zero exit: {}".format(" ".join(cmd)))
+
 class Auth(object):
     def __init__(self, user=None, passwd=None, authinfo=None):
         self.user = user
@@ -125,6 +130,10 @@ class Service(object):
             print (json.dumps(data, indent=4))
             return resp
 
+    def git_add_remote(self, name, url):
+        cmd = ["git", "remote", "add", name, url]
+        call(cmd)
+
 class Github(Service):
     name = "github"
     base = "https://api.github.com"
@@ -169,7 +178,10 @@ SHA256:br9IjFspm1vxR3iA35FWE+4VTyz1hYVLIE2t1/CeyWQ (DSA)
                 "has_wiki": True}
         url = "/user/repos"
         req = Request("POST", url, json=data)
-        self.req_send(req)
+        resp = self.req_send(req)
+        # TODO(ejalfonso) get clone_url from resp
+        clone_url = "ssh://git@github.com/{}/{}".format(self.user(), repo_name)
+        git_add_remote(clone_url)
 
     def list_repos(self, **kwargs):
         del kwargs
@@ -225,7 +237,10 @@ class Bitbucket(Service):
             "private": private}
         url = "/repositories/{}/{}".format(self.user(), repo_name)
         req = Request("POST", url, json=data)
-        self.req_send(req)
+        resp = self.req_send(req)
+        # TODO(ejalfonso) get url from resp
+        clone_url = "ssh://git@bitbucket.com/{}/{}".format(self.user(), repo_name)
+        git_add_remote(clone_url)
 
 SERVICES = {Github.name: Github,
             Bitbucket.name: Bitbucket}
