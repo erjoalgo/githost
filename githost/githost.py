@@ -85,6 +85,14 @@ class Service(object):
     def api_host(self):
         return urlparse(self.base).netloc
 
+    def write_authinfo(self, authinfo):
+        user, passwd=self.user(), self.password()
+        assert authinfo
+        machine = self.api_host()
+        with open(authinfo, "a") as fh:
+            print("machine {} login {} password {}".format(machine, login, password),
+                  file = fh)
+
     def user(self, prompt="enter username: "):
         if not self.auth.user and not self.read_authinfo():
             self.auth.user = raw_input(prompt)
@@ -93,6 +101,11 @@ class Service(object):
     def password(self, prompt="enter password: "):
         if not self.auth.passwd and not self.read_authinfo():
             self.auth.passwd = getpass.getpass(prompt)
+            authinfo = self.auth.authinfo
+            passwd = self.auth.passwd
+            if read_choice(["yes", "no"], prompt="write to {}".format(authinfo)):
+              self.write_authinfo(authinfo)
+            self.auth.passwd = passwd
         return self.auth.passwd
 
     def req_auth(self, req):
