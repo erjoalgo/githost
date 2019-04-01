@@ -109,7 +109,8 @@ class Service(object):
             self.auth.passwd = getpass.getpass(prompt)
             authinfo = self.auth.authinfo
             passwd = self.auth.passwd
-            if read_choice(["yes", "no"], prompt="write to {}".format(authinfo)):
+            if read_choice(["yes", "no"],
+                           prompt="write to {}? ".format(authinfo)):
               self.write_authinfo(authinfo)
             self.auth.passwd = passwd
         return self.auth.passwd
