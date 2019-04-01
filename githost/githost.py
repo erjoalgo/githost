@@ -95,7 +95,8 @@ class Service(object):
         assert authinfo
         machine = self.api_host()
         with open(authinfo, "a") as fh:
-            print("machine {} login {} password {}".format(machine, login, password),
+            print("machine {} login {} password {}"
+                  .format(machine, user, passwd),
                   file = fh)
 
     def user(self, prompt="enter username: "):
