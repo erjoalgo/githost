@@ -5,16 +5,16 @@
 from __future__ import print_function
 
 import argparse
-import platform
-import os
-import logging
 import getpass
-import re
 import json
+import logging
+import os
+import platform
+import re
 from urlparse import urlparse
+import httplib
 import subprocess
 import traceback
-import httplib
 
 import requests
 from requests import Request
