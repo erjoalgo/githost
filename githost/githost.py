@@ -136,6 +136,11 @@ class Service(object):
         cmd = ["git", "remote", "add", name, url]
         call(cmd)
 
+    def repo_name(self):
+        cand = os.path.basename(os.getcwd())
+        repo_name = raw_input("repo name (default {}): ".format(cand))
+        return repo_name or cand
+
 class Github(Service):
     name = "github"
     base = "https://api.github.com"
@@ -168,7 +173,7 @@ SHA256:br9IjFspm1vxR3iA35FWE+4VTyz1hYVLIE2t1/CeyWQ (DSA)
 
     def repo_create(self, repo_name, description, private=True, **kwargs):
         del kwargs
-        repo_name = repo_name or input("repo name: ")
+        repo_name = self.repo_name()
         if not description:
             description = interactive_edit("# enter {} description".format(repo_name)).strip()
 
@@ -209,7 +214,7 @@ class Bitbucket(Service):
 
         data = {"key": pubkey, "label": pubkey_label}
         if key_type == "deploy":
-            repo_name = repo_name or input("deploy key repository name: ")
+            repo_name = self.repo_name()
             # if not repo_name:
                 # raise Exception("Must specify repo name for deploy key post")
             url = "/repositories/{}/{}/deploy-keys".format(self.user(), repo_name)
@@ -227,7 +232,7 @@ class Bitbucket(Service):
 
     def repo_create(self, repo_name, description, private=True, **kwargs):
         del kwargs
-        repo_name = repo_name or input("repo name: ")
+        repo_name = self.repo_name()
         if not description:
             description = interactive_edit("# enter {} description".format(repo_name)).strip()
 
