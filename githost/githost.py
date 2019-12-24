@@ -4,7 +4,8 @@
 
 from __future__ import print_function
 
-from urlparse import urlparse
+from __future__ import absolute_import
+from six.moves.urllib.parse import urlparse
 import argparse
 import getpass
 import json
@@ -15,6 +16,7 @@ import re
 import requests
 import subprocess
 import traceback
+from six.moves import input
 
 logger = logging.getLogger(__name__)
 logging.basicConfig()
@@ -40,7 +42,7 @@ def read_choice(choices, prompt="select: "):
     while True:
         print ("\n".join("{}: {}".format(i, choice)
                          for (i, choice) in enumerate(choices)))
-        resp = raw_input(prompt)
+        resp = input(prompt)
         try:
             idx = int(resp)
             return choices[idx]
@@ -99,7 +101,7 @@ class Service(object):
 
     def user(self, prompt="enter username: "):
         if not self.auth.user and not self.read_authinfo():
-            self.auth.user = raw_input(prompt)
+            self.auth.user = input(prompt)
         return self.auth.user
 
     def password(self, prompt="enter password: "):
@@ -136,7 +138,7 @@ class Service(object):
 
     def repo_name(self):
         cand = os.path.basename(os.getcwd())
-        repo_name = raw_input("repo name (default {}): ".format(cand))
+        repo_name = input("repo name (default {}): ".format(cand))
         return repo_name or cand
 
 class Github(Service):
@@ -252,7 +254,7 @@ SERVICES = dict((service.name, service)
 
 def main():
     parser = argparse.ArgumentParser(fromfile_prefix_chars='@')
-    parser.add_argument("-s", "--service", choices=SERVICES.keys())
+    parser.add_argument("-s", "--service", choices=list(SERVICES.keys()))
     # help = "one of {}".format(" ".join(SERVICES.keys())))
     parser.add_argument("-a", "--authinfo", help=".authinfo or .netrc file path",
                         default=os.path.expanduser("~/.authinfo"))
