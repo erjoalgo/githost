@@ -7,7 +7,6 @@ from __future__ import print_function
 from urlparse import urlparse
 import argparse
 import getpass
-import httplib
 import json
 import logging
 import os
