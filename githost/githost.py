@@ -4,20 +4,18 @@
 
 from __future__ import print_function
 
+from urlparse import urlparse
 import argparse
 import getpass
+import httplib
 import json
 import logging
 import os
 import platform
 import re
-from urlparse import urlparse
-import httplib
+import requests
 import subprocess
 import traceback
-
-import requests
-from requests import Request
 
 logger = logging.getLogger(__name__)
 
@@ -179,7 +177,7 @@ SHA256:br9IjFspm1vxR3iA35FWE+4VTyz1hYVLIE2t1/CeyWQ (DSA)
                 "has_projects": True,
                 "has_wiki": True}
         url = "/user/repos"
-        req = Request("POST", url, json=data)
+        req = requests.Request("POST", url, json=data)
         resp = self.req_send(req)
         # TODO(ejalfonso) get clone_url from resp
         clone_url = "ssh://git@github.com/{}/{}".format(self.user(), repo_name)
@@ -187,7 +185,7 @@ SHA256:br9IjFspm1vxR3iA35FWE+4VTyz1hYVLIE2t1/CeyWQ (DSA)
 
     def list_repos(self, **kwargs):
         del kwargs
-        self.req_send(Request("GET", "/user/repos"))
+        self.req_send(requests.Request("GET", "/user/repos"))
 
 
 class Bitbucket(Service):
@@ -237,7 +235,7 @@ class Bitbucket(Service):
             "scm": "git",
             "private": private}
         url = "/repositories/{}/{}".format(self.user(), repo_name)
-        req = Request("POST", url, json=data)
+        req = requests.Request("POST", url, json=data)
         resp = self.req_send(req)
         # TODO(ejalfonso) get url from resp
         clone_url = "ssh://git@bitbucket.com/{}/{}".format(self.user(), repo_name)
