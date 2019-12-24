@@ -311,21 +311,21 @@ def main():
 
     subparsers = parser.add_subparsers(help="")
 
-    parser_postkey = subparsers.add_parser("postkey", help="post an ssh key")
+    parser_postkey = subparsers.add_parser("key-post", help="post an ssh key")
     parser_postkey.add_argument("-p", "--pubkey-path",
                                 default=os.path.expanduser("~/.ssh/id_rsa.pub"),
                                 help="path to ssh public key file")
     parser_postkey.add_argument("-l", "--pubkey-label",
                                 default="githost-{}".format(platform.node()),
                                 help="label for the public key")
-    parser_postkey.add_argument("-t", "--key_type", help="bitbucket key type")
+    parser_postkey.add_argument("-k", "--key-type", help="bitbucket key type")
     parser_postkey.add_argument("-r", "--repo-name", help="repository name")
     parser_postkey.set_defaults(func="post_key")
 
-    parser_listrepos = subparsers.add_parser("listrepos", help="list available repositories")
+    parser_listrepos = subparsers.add_parser("repo-list", help="list available repositories")
     parser_listrepos.set_defaults(func="list_repos")
 
-    parser_repocreate = subparsers.add_parser("repocreate", help="create a new repository")
+    parser_repocreate = subparsers.add_parser("repo-create", help="create a new repository")
     parser_repocreate.add_argument("-d", "--description", help="repo description")
     parser_repocreate.add_argument("-r", "--repo-name", default=os.path.basename(os.getcwd()),
                                    help="repository name")
