@@ -41,7 +41,7 @@ def read_choice(choices, prompt="select: "):
     while True:
         print ("\n".join("{}: {}".format(i, choice)
                          for (i, choice) in enumerate(choices)))
-        resp = input(prompt)
+        resp = raw_input(prompt)
         try:
             idx = int(resp)
             return choices[idx]
