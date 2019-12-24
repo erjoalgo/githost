@@ -18,6 +18,7 @@ import subprocess
 import traceback
 
 logger = logging.getLogger(__name__)
+logging.basicConfig()
 
 try:
     from ._version import __version__
@@ -76,7 +77,7 @@ class Service(object):
             try:
                 lines = open(authinfo).read().split("\n")
             except IOError as ex:
-                logging.error("failed to read .autinfo: %s", str(ex))
+                logger.error("failed to read .autinfo: %s", str(ex))
                 return None
             for line in lines:
                 m = pat.match(line)
@@ -282,8 +283,7 @@ def main():
 
     args = parser.parse_args()
 
-    if args.verbose:
-        logger.setLevel(logging.DEBUG)
+    logger.setLevel(logging.DEBUG if args.verbose else logging.INFO)
 
     auth = Auth(user=args.username, authinfo=args.authinfo)
     service = SERVICES[args.service](auth=auth)
