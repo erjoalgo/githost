@@ -2,9 +2,10 @@
 
 """A command-line interface to git repository hosting services"""
 
+from __future__ import absolute_import
 from __future__ import print_function
 
-from __future__ import absolute_import
+from six.moves import input
 from six.moves.urllib.parse import urlparse
 import argparse
 import getpass
@@ -16,7 +17,6 @@ import re
 import requests
 import subprocess
 import traceback
-from six.moves import input
 
 logger = logging.getLogger(__name__)
 logging.basicConfig()
