@@ -54,11 +54,10 @@ def call(cmd):
         raise Exception("non-zero exit: {}".format(" ".join(cmd)))
 
 class Auth(object):
-    def __init__(self, user=None, passwd=None, authinfo=None, ssh_host=None):
+    def __init__(self, user=None, passwd=None, authinfo=None):
         self.user = user
         self.passwd = passwd
         self.authinfo = authinfo
-        self.ssh_host = ssh_host
 
 
 class Service(object):
@@ -248,51 +247,9 @@ class Bitbucket(Service):
         clone_url = "ssh://git@bitbucket.com/{}/{}".format(self.user(), repo_name)
         self.git_add_remote(clone_url)
 
-class SelfHosted(Service):
-    name = "self-hosted"
-
-    def __init__(self, auth):
-        super(SelfHosted, self).__init__(auth)
-
-    def ssh_host(self):
-        return self.auth.ssh_host or raw_input("ssh host: ")
-
-    def post_key(self, pubkey_path, **kwargs):
-        raise NotImplementedError("not impl.")
-
-    def remote_path_git(self):
-        return "/opt/git"
-
-    def list_repos(self, **kwargs):
-        host = self.ssh_host()
-        repos = subprocess.check_output(["ssh", host, "ls", "-1", self.remote_path_git()])
-        print ("\n", repos)
-        return repos
-
-    def repo_create(self, repo_name, **kwargs):
-        del kwargs
-        host = self.ssh_host()
-        repo_name = self.repo_name()
-        repo_path = os.path.join(self.remote_path_git(), repo_name)
-        init_command = ["ssh", host, "sudo bash -s"]
-        init_bash_script = """
-        mkdir -p {repo_path} && cd {repo_path}
-        git init --bare
-        chown -R git:git .
-        """.format(repo_path=repo_path)
-        logger.info("repo create command: %s, stdin=%s",
-                    " ".join(init_command), init_bash_script)
-        p = subprocess.Popen(init_command, stdin=subprocess.PIPE)
-        stdout, stderr = p.communicate(init_bash_script)
-        logger.info("stdout, stderr: (%s, %s)", stdout, stderr)
-        assert p.returncode == 0, "non-zero exit status"
-        clone_url = "ssh://git@{host}{repo_path}".format(
-            host=host, repo_path=repo_path)
-        self.git_add_remote(host, clone_url)
-
 SERVICES = dict((service.name, service)
                 for service  in
-                [Github, Bitbucket, SelfHosted])
+                [Github, Bitbucket])
 
 def main():
     parser = argparse.ArgumentParser(fromfile_prefix_chars='@')
@@ -303,8 +260,6 @@ def main():
     parser.add_argument("-u", "--username", help="user name for the selected service")
     parser.add_argument("-f", "--fingerprints",
                         help="display fingerprints of the selected service")
-    parser.add_argument("-t", "--ssh_host",
-                        help="ssh config host for a self-hosted service")
     parser.add_argument("-v", "--verbose", action="store_true")
     parser.add_argument("--version", action="version", version=__version__)
 
@@ -335,7 +290,7 @@ def main():
 
     logger.setLevel(logging.DEBUG if args.verbose else logging.INFO)
 
-    auth = Auth(user=args.username, authinfo=args.authinfo, ssh_host=args.ssh_host)
+    auth = Auth(user=args.username, authinfo=args.authinfo)
     service = SERVICES[args.service](auth=auth)
     fn = getattr(service, args.func)
     logger.debug(args)
