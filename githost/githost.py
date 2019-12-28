@@ -188,7 +188,7 @@ SHA256:br9IjFspm1vxR3iA35FWE+4VTyz1hYVLIE2t1/CeyWQ (DSA)
         resp = self.req_send(req)
         # TODO(ejalfonso) get clone_url from resp
         clone_url = "ssh://git@github.com/{}/{}".format(self.user(), repo_name)
-        self.git_add_remote(clone_url)
+        self.git_add_remote("github", clone_url)
 
     def list_repos(self, **kwargs):
         del kwargs
@@ -246,7 +246,7 @@ class Bitbucket(Service):
         resp = self.req_send(req)
         # TODO(ejalfonso) get url from resp
         clone_url = "ssh://git@bitbucket.com/{}/{}".format(self.user(), repo_name)
-        self.git_add_remote(clone_url)
+        self.git_add_remote("bitbucket", clone_url)
 
 SERVICES = dict((service.name, service)
                 for service  in
