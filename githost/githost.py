@@ -16,6 +16,7 @@ import platform
 import re
 import requests
 import subprocess
+import sys
 import traceback
 
 logger = logging.getLogger(__name__)
@@ -287,6 +288,9 @@ def main():
                                    help="repository name")
     parser_repocreate.set_defaults(func="repo_create")
 
+    if len(sys.argv) == 1:
+        parser.print_help(sys.stderr)
+        return 0
     args = parser.parse_args()
 
     logger.setLevel(logging.DEBUG if args.verbose else logging.INFO)
