@@ -296,7 +296,10 @@ def main():
     logger.setLevel(logging.DEBUG if args.verbose else logging.INFO)
 
     auth = Auth(user=args.username, authinfo=args.authinfo)
-    service = SERVICES[args.service](auth=auth)
+    service_fn = SERVICES.get(args.service)
+    if not service_fn:
+        raise ValueError(f"Invalid service: {args.service}")
+    service = service_fn(auth=auth)
     fn = getattr(service, args.func)
     logger.debug(args)
     fn(**vars(args))
