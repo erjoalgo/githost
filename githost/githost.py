@@ -255,7 +255,7 @@ SERVICES = dict((service.name, service)
 
 def main():
     parser = argparse.ArgumentParser(fromfile_prefix_chars='@')
-    parser.add_argument("-s", "--service", choices=list(SERVICES.keys()))
+    parser.add_argument("service", choices=list(SERVICES.keys()))
     # help = "one of {}".format(" ".join(SERVICES.keys())))
     parser.add_argument("-a", "--authinfo", help=".authinfo or .netrc file path",
                         default=os.path.expanduser("~/.authinfo"))
