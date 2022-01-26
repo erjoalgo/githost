@@ -4,7 +4,7 @@ from setuptools import setup, find_packages
 
 MODULE_NAME = "githost"
 VERSIONFILE = os.path.join(os.path.dirname(__file__), MODULE_NAME, "_version.py")
-execfile(VERSIONFILE)
+exec(open(VERSIONFILE).read())
 
 setup(
     name=MODULE_NAME,
