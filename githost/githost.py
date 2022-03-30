@@ -25,8 +25,7 @@ logging.basicConfig()
 try:
     from ._version import __version__
 except:
-    traceback.print_exc()
-    __version__ = "unknown"
+    __version__ = f"unknown: {traceback.format_exc()}"
 
 def interactive_edit(initial_contents):
     tmp = os.path.expanduser("~/.githost.tmp")
