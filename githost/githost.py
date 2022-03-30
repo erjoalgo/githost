@@ -124,7 +124,6 @@ class Service(object):
         if add_auth:
             self.req_auth(req)
         resp = requests.Session().send(req.prepare())
-        print(req.headers)
         if not resp.ok:
             print (resp.text)
             resp.raise_for_status()
@@ -294,16 +293,7 @@ def main():
         return 0
     args = parser.parse_args()
 
-    try: # for Python 3
-        from http.client import HTTPConnection
-    except ImportError:
-        from httplib import HTTPConnection
-        HTTPConnection.debuglevel = 1
-    level = logging.DEBUG if args.verbose else logging.INFO
-    logger.setLevel(level)
-    requests_log = logging.getLogger("urllib3")
-    requests_log.setLevel(level)
-    requests_log.propagate = True
+    logger.setLevel(logging.DEBUG if args.verbose else logging.INFO)
 
     auth = Auth(user=args.username, authinfo=args.authinfo)
     service_fn = SERVICES.get(args.service)
