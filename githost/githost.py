@@ -174,6 +174,7 @@ SHA256:br9IjFspm1vxR3iA35FWE+4VTyz1hYVLIE2t1/CeyWQ (DSA)
 
     def repo_create(self, repo_name, description, private=True, **kwargs):
         del kwargs
+        self.ensure_on_git_repo_directory()
         repo_name = self.repo_name()
         if not description:
             description = interactive_edit("# enter {} description".format(repo_name)).strip()
@@ -190,6 +191,10 @@ SHA256:br9IjFspm1vxR3iA35FWE+4VTyz1hYVLIE2t1/CeyWQ (DSA)
         # TODO(ejalfonso) get clone_url from resp
         clone_url = "ssh://git@github.com/{}/{}".format(self.user(), repo_name)
         self.git_add_remote("github", clone_url)
+
+    @staticmethod
+    def ensure_on_git_repo_directory():
+        subprocess.check_output(["git", "status"])
 
     def list_repos(self, **kwargs):
         del kwargs
