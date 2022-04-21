@@ -123,6 +123,7 @@ class Service(object):
             req.url = self.base + req.url
         if add_auth:
             self.req_auth(req)
+        logger.debug("%s %s:\n%s\n%s\n%s", req.method, req.url, req.json, req.data, req.params)
         resp = requests.Session().send(req.prepare())
         if not resp.ok:
             print (resp.text)
@@ -299,6 +300,11 @@ def main():
     args = parser.parse_args()
 
     logger.setLevel(logging.DEBUG if args.verbose else logging.INFO)
+
+    if args.verbose:
+        requests_log = logging.getLogger("requests.packages.urllib3")
+        requests_log.setLevel(logging.DEBUG)
+        requests_log.propagate = True
 
     auth = Auth(user=args.username, authinfo=args.authinfo)
     service_fn = SERVICES.get(args.service)
