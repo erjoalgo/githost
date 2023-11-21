@@ -117,8 +117,9 @@ class Service(object):
             self.auth.passwd = passwd
         return self.auth.passwd
 
-    def req_auth(self, req):
-        req.auth = (self.user(), self.password())
+    def req_auth(self, req, password_prompt=None):
+        kwargs = {prompt: password_prompt} if password_prompt else {}
+        req.auth = (self.user(), self.password(**kwargs))
 
     def req_send(self, req, add_auth=True):
         if not urlparse(req.url).netloc:
@@ -162,7 +163,7 @@ SHA256:br9IjFspm1vxR3iA35FWE+4VTyz1hYVLIE2t1/CeyWQ (DSA)
         """
 
     def req_auth(self, req):
-        super(Github, self).req_auth(req)
+        super(Github, self).req_auth(req, prompt="enter github token: ")
         req.headers["User-Agent"] = "anon"
         req.headers["Authorization"] = f"token {self.auth.passwd}"
 
