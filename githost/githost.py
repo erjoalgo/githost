@@ -31,8 +31,8 @@ def interactive_edit(initial_contents):
     """Open an editor to interactively edit a text template."""
     tmp = os.path.expanduser("~/.githost.tmp")
     editor = os.getenv("VISUAL") or os.getenv("EDITOR") or "vi"
-    with open(tmp, "w") as fh:
-        print(initial_contents, file=fh)
+    with open(tmp, "w") as stream:
+        print(initial_contents, file=stream)
 
     subprocess.call([editor, tmp])
 
