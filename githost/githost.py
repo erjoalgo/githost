@@ -28,6 +28,7 @@ except:
     __version__ = f"unknown: {traceback.format_exc()}"
 
 def interactive_edit(initial_contents):
+    """Open an editor to interactively edit a text template."""
     tmp = os.path.expanduser("~/.githost.tmp")
     editor = os.getenv("VISUAL") or os.getenv("EDITOR") or "vi"
     with open(tmp, "w") as fh:
@@ -39,6 +40,7 @@ def interactive_edit(initial_contents):
     return contents
 
 def read_choice(choices, prompt="select: "):
+    """Prompt user for the index of their selection."""
     while True:
         print ("\n".join("{}: {}".format(i, choice)
                          for (i, choice) in enumerate(choices)))
