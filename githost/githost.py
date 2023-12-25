@@ -117,8 +117,8 @@ class Service(object):
             self.auth.passwd = passwd
         return self.auth.passwd
 
-    def req_auth(self, req, password_prompt=None):
-        kwargs = {prompt: password_prompt} if password_prompt else {}
+    def req_auth(self, req, prompt=None):
+        kwargs = {"prompt": prompt} if prompt else {}
         req.auth = (self.user(), self.password(**kwargs))
 
     def req_send(self, req, add_auth=True):
