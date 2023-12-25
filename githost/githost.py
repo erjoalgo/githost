@@ -56,6 +56,12 @@ def call(cmd):
     if ret != 0:
         raise Exception("non-zero exit: {}".format(" ".join(cmd)))
 
+def x_www_browser(url):
+    try:
+        call(["x-www-browser", url])
+    except Exception as ex:
+        logging.error("failed to open x browser: ", ex)
+
 class Auth(object):
     def __init__(self, user=None, passwd=None, authinfo=None):
         self.user = user
@@ -161,11 +167,13 @@ These are the SHA256 hashes shown in OpenSSH 6.8 and newer (in base64 format):
 SHA256:nThbg6kXUpJWGl7E1IGOCspRomTxdCARLviKw6E5SY8 (RSA)
 SHA256:br9IjFspm1vxR3iA35FWE+4VTyz1hYVLIE2t1/CeyWQ (DSA)
         """
+        self.TOKEN_URL = "https://github.com/settings/tokens"
 
     def req_auth(self, req):
+        x_www_browser(self.TOKEN_URL)
         super(Github, self).req_auth(
             req,
-            prompt="enter github token (https://github.com/settings/tokens): ")
+            prompt=f"enter github token ({self.TOKEN_URL}): ")
         req.headers["User-Agent"] = "anon"
         req.headers["Authorization"] = f"token {self.auth.passwd}"
 
