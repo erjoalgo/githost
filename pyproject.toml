@@ -32,3 +32,6 @@ Repository = "https://github.com/erjoalgo/githost/"
 
 [project.scripts]
 githost = "githost.githost:main"
+
+[project.entry-points."githost.githost"]
+githost = "githost.githost:main"
