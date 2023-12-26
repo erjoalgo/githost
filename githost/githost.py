@@ -9,6 +9,7 @@ from six.moves import input
 from six.moves.urllib.parse import urlparse
 import argparse
 import getpass
+import importlib.metadata
 import json
 import logging
 import os
@@ -23,7 +24,7 @@ logger = logging.getLogger(__name__)
 logging.basicConfig()
 
 try:
-    from ._version import __version__
+    __version__ = importlib.metadata.version('githost')
 except:
     __version__ = f"unknown: {traceback.format_exc()}"
 

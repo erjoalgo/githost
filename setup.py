@@ -1,10 +1,13 @@
 
-import os
 from setuptools import setup, find_packages
+import os
+import tomllib
 
 MODULE_NAME = "githost"
-VERSIONFILE = os.path.join(os.path.dirname(__file__), MODULE_NAME, "_version.py")
-exec(open(VERSIONFILE).read())
+VERSIONFILE = os.path.join(os.path.dirname(__file__), "pyproject.toml")
+with open(VERSIONFILE, "rb") as fh:
+    data = tomllib.load(fh)
+    __version__ = data["project"]["version"]
 
 setup(
     name=MODULE_NAME,
