@@ -22,6 +22,5 @@ setup(
         "console_scripts": [
             "{0}={0}.{0}:main".format(MODULE_NAME)
         ]
-    },
-    install_requires=["requests"],
+    }
 )
