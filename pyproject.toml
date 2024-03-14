@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "githost"
-version = "2023.12.27.0"
+version = "2024.03.14.0"
 dependencies = [
   "requests",
   "six",
