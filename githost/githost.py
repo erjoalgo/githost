@@ -94,6 +94,7 @@ class Service(object):
                 if m:
                     auth.user = m.group(1)
                     auth.passwd = m.group(2)
+                    print(f"found {machine} password in {authinfo}")
                     return auth
 
     def api_host(self):
