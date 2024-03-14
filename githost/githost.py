@@ -172,7 +172,6 @@ SHA256:br9IjFspm1vxR3iA35FWE+4VTyz1hYVLIE2t1/CeyWQ (DSA)
         self.TOKEN_URL = "https://github.com/settings/tokens"
 
     def req_auth(self, req):
-        x_www_browser(self.TOKEN_URL)
         super(Github, self).req_auth(
             req,
             prompt=f"enter github token ({self.TOKEN_URL}): ")
