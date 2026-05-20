@@ -18,7 +18,8 @@ maintainers = [
 ]
 description = "A command-line client to various git repository hosting APIs"
 readme = "README.md"
-license = {file = "LICENSE"}
+license = "GPL-3.0-or-later"
+
 keywords = ["git", "github", "bitbucket", "client"]
 classifiers = [
   "Development Status :: 4 - Beta",

@@ -16,7 +16,6 @@ setup(
     author_email="erjoalgo@gmail.com",
     url="https://github.com/erjoalgo/githost",
     description="A command-line interface to various git repository hosting services",
-    license="GPLv3",
     packages=find_packages(),
     entry_points={
         "console_scripts": [
