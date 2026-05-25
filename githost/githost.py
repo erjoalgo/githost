@@ -92,6 +92,7 @@ class Service:
                     auth.passwd = m.group(2)
                     print(f"found {machine} password in {authinfo}")
                     return auth
+        return None
 
     def api_host(self):
         """Extract the git-hosting service hostname."""
@@ -143,6 +144,7 @@ class Service:
             data = json.loads(resp.text)
             print (json.dumps(data, indent=4))
             return resp
+        return None
 
     def git_add_remote(self, name, url):
         """Register the current githost service locally as a git remote."""
@@ -342,6 +344,7 @@ def main():
     fn = getattr(service, args.func)
     logger.debug(args)
     fn(**vars(args))
+    return 0
 
 if __name__ == "__main__":
     main()
