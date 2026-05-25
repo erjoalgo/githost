@@ -166,7 +166,7 @@ class Github(Service):
     TOKEN_URL = "https://github.com/settings/tokens"
 
     def __init__(self, auth):
-        super(Github, self).__init__(auth)
+        super().__init__(auth)
         self.fingerprints = """
         These are GitHub's public key fingerprints (in hexadecimal format):
 
@@ -179,7 +179,7 @@ SHA256:br9IjFspm1vxR3iA35FWE+4VTyz1hYVLIE2t1/CeyWQ (DSA)
         """
 
     def req_auth(self, req):
-        super(Github, self).req_auth(
+        super().req_auth(
             req,
             prompt=f"enter github token ({self.TOKEN_URL}): ")
         req.headers["User-Agent"] = "anon"
