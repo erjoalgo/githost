@@ -10,11 +10,12 @@ import logging
 import os
 import platform
 import re
-import requests
 import subprocess
 import sys
 import traceback
 import urllib
+
+import requests
 
 logger = logging.getLogger(__name__)
 logging.basicConfig()
