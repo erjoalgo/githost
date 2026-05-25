@@ -23,7 +23,7 @@ logging.basicConfig()
 
 try:
     __version__ = importlib.metadata.version('githost')
-except:
+except Exception:
     __version__ = f"unknown: {traceback.format_exc()}"
 
 def interactive_edit(initial_contents):
@@ -47,7 +47,7 @@ def read_choice(choices, prompt="select: "):
         try:
             idx = int(resp)
             return choices[idx]
-        except:
+        except Exception:
             pass
 
 def call(cmd):
