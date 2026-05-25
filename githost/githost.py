@@ -214,6 +214,7 @@ SHA256:br9IjFspm1vxR3iA35FWE+4VTyz1hYVLIE2t1/CeyWQ (DSA)
         req = requests.Request("POST", url, json=data)
         resp = self.req_send(req)
         # TODO(ejalfonso) get clone_url from resp
+        del resp
         clone_url = f"ssh://git@github.com/{self.user()}/{repo_name}"
         self.git_add_remote("github", clone_url)
 
@@ -283,6 +284,7 @@ class Bitbucket(Service):
         url = f"/repositories/{self.user()}/{repo_name}"
         req = requests.Request("POST", url, json=data)
         resp = self.req_send(req)
+        del resp
         # TODO(ejalfonso) get url from resp
         clone_url = f"ssh://git@bitbucket.com/{self.user()}/{repo_name}"
         self.git_add_remote("bitbucket", clone_url)
