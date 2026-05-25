@@ -178,7 +178,7 @@ SHA256:nThbg6kXUpJWGl7E1IGOCspRomTxdCARLviKw6E5SY8 (RSA)
 SHA256:br9IjFspm1vxR3iA35FWE+4VTyz1hYVLIE2t1/CeyWQ (DSA)
         """
 
-    def req_auth(self, req):
+    def req_auth(self, req, prompt=None):
         super().req_auth(
             req,
             prompt=f"enter github token ({self.TOKEN_URL}): ")
