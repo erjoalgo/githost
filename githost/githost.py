@@ -163,6 +163,8 @@ class Github(Service):
     name = "github"
     base = "https://api.github.com"
 
+    TOKEN_URL = "https://github.com/settings/tokens"
+
     def __init__(self, auth):
         super(Github, self).__init__(auth)
         self.fingerprints = """
@@ -175,7 +177,6 @@ These are the SHA256 hashes shown in OpenSSH 6.8 and newer (in base64 format):
 SHA256:nThbg6kXUpJWGl7E1IGOCspRomTxdCARLviKw6E5SY8 (RSA)
 SHA256:br9IjFspm1vxR3iA35FWE+4VTyz1hYVLIE2t1/CeyWQ (DSA)
         """
-        self.TOKEN_URL = "https://github.com/settings/tokens"
 
     def req_auth(self, req):
         super(Github, self).req_auth(
