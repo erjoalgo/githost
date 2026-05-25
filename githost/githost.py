@@ -35,8 +35,9 @@ def interactive_edit(initial_contents):
 
     subprocess.call([editor, tmp])
 
-    contents = open(tmp, "r").read()
-    return contents
+    with open(tmp, "r") as fh:
+        contents = fh.read()
+        return contents
 
 def read_choice(choices, prompt="select: "):
     """Prompt user for the index of their selection."""
@@ -84,7 +85,8 @@ class Service(object):
             pat = re.compile("^machine {} login (.*) password (.*)"
                              .format(re.escape(machine)))
             try:
-                lines = open(authinfo).read().split("\n")
+                with open(authinfo, "r") as fh:
+                    lines = fh.read().split("\n")
             except IOError as ex:
                 logger.error("failed to read .autinfo: %s", str(ex))
                 return None
@@ -181,7 +183,8 @@ SHA256:br9IjFspm1vxR3iA35FWE+4VTyz1hYVLIE2t1/CeyWQ (DSA)
     # TODO(ealfonso) rename to key_post
     def post_key(self, pubkey_path, pubkey_label, **kwargs):
         del kwargs
-        pubkey = open(pubkey_path).read()
+        with open(pubkey_path, "r") as fh:
+            pubkey = fh.read()
         data = {"key": pubkey, "title": pubkey_label}
         url = "/user/keys"
         req = requests.Request("POST", url, json=data)
@@ -226,7 +229,8 @@ class Bitbucket(Service):
 
     def post_key(self, pubkey_path, pubkey_label, key_type=None, repo_name=None, **kwargs):
         del kwargs
-        pubkey = open(pubkey_path).read().strip()
+        with open(pubkey_path, "r") as fh:
+            pubkey = fh.read().strip()
 
         key_types = ("deploy", "ssh")
         key_type = key_type or read_choice(key_types)
