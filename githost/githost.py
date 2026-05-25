@@ -42,7 +42,7 @@ def interactive_edit(initial_contents):
 def read_choice(choices, prompt="select: "):
     """Prompt user for the index of their selection."""
     while True:
-        print ("\n".join("{}: {}".format(i, choice)
+        print ("\n".join(f"{i}: {choice}"
                          for (i, choice) in enumerate(choices)))
         resp = input(prompt)
         try:
@@ -107,9 +107,7 @@ class Service(object):
         assert authinfo
         machine = self.api_host()
         with open(authinfo, "a") as fh:
-            print("machine {} login {} password {}"
-                  .format(machine, user, passwd),
-                  file = fh)
+            print(f"machine {machine} login {user} password {passwd}", file = fh)
 
     def user(self, prompt="enter username: "):
         if not self.auth.user and not self.read_authinfo():
@@ -122,7 +120,7 @@ class Service(object):
             authinfo = self.auth.authinfo
             passwd = self.auth.passwd
             if read_choice(["yes", "no"],
-                           prompt="write to {}? ".format(authinfo)):
+                           prompt=f"write to {authinfo}? "):
               self.write_authinfo(authinfo)
             self.auth.passwd = passwd
         return self.auth.passwd
@@ -152,7 +150,7 @@ class Service(object):
 
     def repo_name(self):
         cand = os.path.basename(os.getcwd())
-        repo_name = input("repo name (default {}): ".format(cand))
+        repo_name = input(f"repo name (default {cand}): ")
         return repo_name or cand
 
 class Github(Service):
@@ -191,11 +189,12 @@ SHA256:br9IjFspm1vxR3iA35FWE+4VTyz1hYVLIE2t1/CeyWQ (DSA)
         self.req_send(req)
 
     def repo_create(self, repo_name, description, private=True, **kwargs):
+        """Create a github repo with the given name and description."""
         del kwargs
         self.ensure_on_git_repo_directory()
         repo_name = self.repo_name()
         if not description:
-            description = interactive_edit("# enter {} description".format(repo_name)).strip()
+            description = interactive_edit(f"# enter {repo_name} description").strip()
 
         data = {"name": repo_name,
                 "description": description,
@@ -207,7 +206,7 @@ SHA256:br9IjFspm1vxR3iA35FWE+4VTyz1hYVLIE2t1/CeyWQ (DSA)
         req = requests.Request("POST", url, json=data)
         resp = self.req_send(req)
         # TODO(ejalfonso) get clone_url from resp
-        clone_url = "ssh://git@github.com/{}/{}".format(self.user(), repo_name)
+        clone_url = f"ssh://git@github.com/{self.user()}/{repo_name}"
         self.git_add_remote("github", clone_url)
 
     @staticmethod
@@ -235,23 +234,24 @@ class Bitbucket(Service):
         key_types = ("deploy", "ssh")
         key_type = key_type or read_choice(key_types)
         if not key_type in key_types:
-            raise Exception("Must specificy key type: {{}}".format(",".join(key_types)))
+            key_types = ",".join(key_types)
+            raise Exception(f"Must specificy key type: {key_types}")
 
         data = {"key": pubkey, "label": pubkey_label}
         if key_type == "deploy":
             repo_name = self.repo_name()
             # if not repo_name:
                 # raise Exception("Must specify repo name for deploy key post")
-            url = "/repositories/{}/{}/deploy-keys".format(self.user(), repo_name)
+            url = f"/repositories/{self.user()}/{repo_name}/deploy-keys"
         elif key_type == "ssh":
-            url = "/users/{}/ssh-keys".format(self.user())
+            url = f"/users/{self.user()}/ssh-keys"
 
         req = requests.Request("POST", url, json=data)
         self.req_send(req)
 
     def list_repos(self, **kwargs):
         del kwargs
-        url = "/repositories/{}".format(self.user())
+        url = f"/repositories/{self.user()}"
         req = requests.Request("GET", url)
         self.req_send(req)
 
@@ -259,18 +259,18 @@ class Bitbucket(Service):
         del kwargs
         repo_name = self.repo_name()
         if not description:
-            description = interactive_edit("# enter {} description".format(repo_name)).strip()
+            description = interactive_edit(f"# enter {repo_name} description").strip()
 
         data = {
             # "project": {"key": repo_name},
             "description": description,
             "scm": "git",
             "private": private}
-        url = "/repositories/{}/{}".format(self.user(), repo_name)
+        url = f"/repositories/{self.user()}/{repo_name}"
         req = requests.Request("POST", url, json=data)
         resp = self.req_send(req)
         # TODO(ejalfonso) get url from resp
-        clone_url = "ssh://git@bitbucket.com/{}/{}".format(self.user(), repo_name)
+        clone_url = f"ssh://git@bitbucket.com/{self.user()}/{repo_name}"
         self.git_add_remote("bitbucket", clone_url)
 
 SERVICES = dict((service.name, service)
@@ -297,7 +297,7 @@ def main():
                                 default=os.path.expanduser("~/.ssh/id_rsa.pub"),
                                 help="path to ssh public key file")
     parser_postkey.add_argument("-l", "--pubkey-label",
-                                default="githost-{}".format(platform.node()),
+                                default=f"githost-{platform.node()}",
                                 help="label for the public key")
     parser_postkey.add_argument("-k", "--key-type", help="bitbucket key type")
     parser_postkey.set_defaults(func="post_key")
