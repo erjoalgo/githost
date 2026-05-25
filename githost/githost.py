@@ -255,6 +255,8 @@ class Bitbucket(Service):
             url = f"/repositories/{self.user()}/{repo_name}/deploy-keys"
         elif key_type == "ssh":
             url = f"/users/{self.user()}/ssh-keys"
+        else:
+            raise Exception(f"unknown key type: {key_type}")
 
         req = requests.Request("POST", url, json=data)
         self.req_send(req)
