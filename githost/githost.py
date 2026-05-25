@@ -150,7 +150,7 @@ class Service:
     def git_add_remote(self, name, url):
         """Register the current githost service locally as a git remote."""
         cmd = ["git", "remote", "add", name, url]
-        call(cmd)
+        subprocess.run(cmd, check = True)
 
     def repo_name(self):
         """Returns the repository name."""
