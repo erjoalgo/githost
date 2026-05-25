@@ -127,6 +127,7 @@ class Service:
     def req_auth(self, req, prompt=None):
         """Fill in the request's authentication details."""
         kwargs = {"prompt": prompt} if prompt else {}
+        # uses basic auth by default
         req.auth = (self.user(), self.password(**kwargs))
 
     def req_send(self, req, add_auth=True):
