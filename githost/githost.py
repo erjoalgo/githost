@@ -6,7 +6,6 @@ from __future__ import absolute_import
 from __future__ import print_function
 
 from six.moves import input
-from six.moves.urllib.parse import urlparse
 import argparse
 import getpass
 import importlib.metadata
@@ -19,6 +18,7 @@ import requests
 import subprocess
 import sys
 import traceback
+import urllib
 
 logger = logging.getLogger(__name__)
 logging.basicConfig()
@@ -98,7 +98,8 @@ class Service(object):
                     return auth
 
     def api_host(self):
-        return urlparse(self.base).netloc
+        """Extract the git-hosting service hostname."""
+        return urllib.parse.urlparse(self.base).hostname
 
     def write_authinfo(self, authinfo):
         user, passwd=self.user(), self.password()
@@ -130,7 +131,7 @@ class Service(object):
         req.auth = (self.user(), self.password(**kwargs))
 
     def req_send(self, req, add_auth=True):
-        if not urlparse(req.url).netloc:
+        if not urllib.parse.urlparse(req.url).hostname:
             req.url = self.base + req.url
         if add_auth:
             self.req_auth(req)
