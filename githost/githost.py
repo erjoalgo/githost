@@ -235,9 +235,6 @@ class Bitbucket(Service):
     base = "https://api.bitbucket.org/2.0"
     # base = "http://localhost:1231"
 
-    def __init__(self, auth):
-        super(Bitbucket, self).__init__(auth)
-
     def post_key(self, pubkey_path, pubkey_label, key_type=None, repo_name=None, **kwargs):
         """Post the public ssh key to github."""
         del kwargs
