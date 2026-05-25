@@ -63,7 +63,7 @@ class Auth:
     authinfo: str
 
 
-class Service(object):
+class Service:
     """Base class holding the common implementation for interacting with a git-hosting service."""
     name = None
     base = None
