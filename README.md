@@ -39,4 +39,5 @@ Publish the local git repo at the current directory to github:
 
 
 If required authentication is missing or invalid at any time, the tool will
-prompt and walk the user through how to obtain the appropriate github or bitbucket API tokens.
+prompt and walk the user through how to obtain the appropriate github or bitbucket API tokens,
+and provide the option to cache those tokens locally.
