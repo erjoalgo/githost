@@ -15,6 +15,7 @@ import sys
 import traceback
 import urllib
 
+from dataclasses import dataclass
 import requests
 
 logger = logging.getLogger(__name__)
@@ -60,11 +61,12 @@ def x_www_browser(url):
     except Exception as ex:
         logging.error("failed to open x browser: ", ex)
 
-class Auth(object):
-    def __init__(self, user=None, passwd=None, authinfo=None):
-        self.user = user
-        self.passwd = passwd
-        self.authinfo = authinfo
+@dataclass
+class Auth:
+    """Authentication information."""
+    user: str
+    passwd: str
+    authinfo: str
 
 
 class Service(object):
@@ -317,7 +319,7 @@ def main():
         requests_log.setLevel(logging.DEBUG)
         requests_log.propagate = True
 
-    auth = Auth(user=args.username, authinfo=args.authinfo)
+    auth = Auth(user=args.username, authinfo=args.authinfo, passwd=None)
     service_fn = SERVICES.get(args.service)
     if not service_fn:
         raise ValueError(f"Invalid service: {args.service}")
