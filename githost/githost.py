@@ -64,12 +64,14 @@ class Auth:
 
 
 class Service(object):
+    """Base class holding the common implementation for interacting with a git-hosting service."""
     name = None
     base = None
     def __init__(self, auth):
         self.auth = auth
 
     def read_authinfo(self):
+        """Try looking up auth details from the user's authinfo file."""
         auth = self.auth
         authinfo = auth.authinfo
         if authinfo and os.path.exists(authinfo):
@@ -96,6 +98,7 @@ class Service(object):
         return urllib.parse.urlparse(self.base).hostname
 
     def write_authinfo(self, authinfo):
+        """Persist the gathered credentials into the user's authinfo."""
         user, passwd=self.user(), self.password()
         assert authinfo
         machine = self.api_host()
@@ -103,11 +106,13 @@ class Service(object):
             print(f"machine {machine} login {user} password {passwd}", file = fh)
 
     def user(self, prompt="enter username: "):
+        """Read or prompt for the service username."""
         if not self.auth.user and not self.read_authinfo():
             self.auth.user = input(prompt)
         return self.auth.user
 
     def password(self, prompt="enter password: "):
+        """Read or prompt for the service password or token."""
         if not self.auth.passwd and not self.read_authinfo():
             self.auth.passwd = getpass.getpass(prompt)
             authinfo = self.auth.authinfo
@@ -119,10 +124,12 @@ class Service(object):
         return self.auth.passwd
 
     def req_auth(self, req, prompt=None):
+        """Fill in the request's authentication details."""
         kwargs = {"prompt": prompt} if prompt else {}
         req.auth = (self.user(), self.password(**kwargs))
 
     def req_send(self, req, add_auth=True):
+        """Send the request after filling in auth details and parses the response."""
         if not urllib.parse.urlparse(req.url).hostname:
             req.url = self.base + req.url
         if add_auth:
@@ -138,15 +145,18 @@ class Service(object):
             return resp
 
     def git_add_remote(self, name, url):
+        """Register the current githost service locally as a git remote."""
         cmd = ["git", "remote", "add", name, url]
         call(cmd)
 
     def repo_name(self):
+        """Returns the repository name."""
         cand = os.path.basename(os.getcwd())
         repo_name = input(f"repo name (default {cand}): ")
         return repo_name or cand
 
 class Github(Service):
+    """Manage the interaction with a Github repository host."""
     name = "github"
     base = "https://api.github.com"
 
@@ -173,6 +183,7 @@ SHA256:br9IjFspm1vxR3iA35FWE+4VTyz1hYVLIE2t1/CeyWQ (DSA)
 
     # TODO(ealfonso) rename to key_post
     def post_key(self, pubkey_path, pubkey_label, **kwargs):
+        """Post the given ssh public key to github."""
         del kwargs
         with open(pubkey_path, "r") as fh:
             pubkey = fh.read()
@@ -204,14 +215,17 @@ SHA256:br9IjFspm1vxR3iA35FWE+4VTyz1hYVLIE2t1/CeyWQ (DSA)
 
     @staticmethod
     def ensure_on_git_repo_directory():
+        """Make sure we're on a git repo directory."""
         subprocess.check_output(["git", "status"])
 
     def list_repos(self, **kwargs):
+        """List remote repositories."""
         del kwargs
         self.req_send(requests.Request("GET", "/user/repos"))
 
 
 class Bitbucket(Service):
+    """Manage the interaction with a Bitbucket repository host."""
     name = "bitbucket"
     base = "https://api.bitbucket.org/2.0"
     # base = "http://localhost:1231"
@@ -220,6 +234,7 @@ class Bitbucket(Service):
         super(Bitbucket, self).__init__(auth)
 
     def post_key(self, pubkey_path, pubkey_label, key_type=None, repo_name=None, **kwargs):
+        """Post the public ssh key to github."""
         del kwargs
         with open(pubkey_path, "r") as fh:
             pubkey = fh.read().strip()
@@ -243,12 +258,14 @@ class Bitbucket(Service):
         self.req_send(req)
 
     def list_repos(self, **kwargs):
+        """List the repos under the github account."""
         del kwargs
         url = f"/repositories/{self.user()}"
         req = requests.Request("GET", url)
         self.req_send(req)
 
     def repo_create(self, repo_name, description, private=True, **kwargs):
+        """Create the given repo on Bitbucket."""
         del kwargs
         repo_name = self.repo_name()
         if not description:
@@ -271,6 +288,7 @@ SERVICES = dict((service.name, service)
                 [Github, Bitbucket])
 
 def main():
+    """Main function."""
     parser = argparse.ArgumentParser(fromfile_prefix_chars='@')
     parser.add_argument("service", choices=list(SERVICES.keys()))
     # help = "one of {}".format(" ".join(SERVICES.keys())))
