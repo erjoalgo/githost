@@ -1,15 +1,18 @@
-: pip install githost
-: githost -h
+`pip install githost`
+
+`githost -h`
 
 Post the local ssh public key to github.
 
-: githost github key-post
+`githost github key-post`
 
 List the existing repositories
-: githost github repo-list
+
+`githost github repo-list`
 
 Publish the local git repo at the current directory to github:
-: githost github repo-create
+
+`githost github repo-create`
 
 
 If required authentication is missing or invalid at any time, the tool will
