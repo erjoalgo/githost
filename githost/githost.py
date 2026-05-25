@@ -51,16 +51,9 @@ def read_choice(choices, prompt="select: "):
         except Exception:
             pass
 
-def call(cmd):
-    ret = subprocess.call(cmd)
-    if ret != 0:
-        raise Exception("non-zero exit: {}".format(" ".join(cmd)))
-
 def x_www_browser(url):
-    try:
-        call(["x-www-browser", url])
-    except Exception as ex:
-        logging.error("failed to open x browser: ", ex)
+    """Open the given url using the system's browser."""
+    subprocess.run(["x-www-browser", url], check = True)
 
 @dataclass
 class Auth:
