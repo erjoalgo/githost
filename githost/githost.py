@@ -388,17 +388,18 @@ class Gitlab(Service):
 
     def mr_list(self, **kwargs):
         """List the user's open and merged merge requests across all projects,
-        followed by the branches they pushed to that have neither, as MR null."""
+        followed by the branches they pushed to that have neither, as MR null.
+
+        The date is when the MR was last updated, or the branch last committed to."""
         del kwargs
         has_mr = set()
         for state in ("opened", "merged"):
             params = {"state": state, "scope": "created_by_me"}
             for mr in self.get_all("/merge_requests", params):
                 has_mr.add((mr["source_project_id"], mr["source_branch"]))
-                project, _, iid = mr["references"]["full"].rpartition("!")
                 draft = "[draft] " if mr.get("draft") else ""
-                print(f"!{iid}\t{state}\t{project}\t{mr['source_branch']}"
-                      f"\t{draft}{mr['title']}\t{mr['web_url']}")
+                print(f"!{mr['iid']}\t{state}\t{mr['updated_at'][:10]}\t{mr['web_url']}"
+                      f"\t{mr['source_branch']}\t{draft}{mr['title']}")
 
         pushed = dict.fromkeys(
             (event["project_id"], event["push_data"]["ref"])
@@ -417,8 +418,9 @@ class Gitlab(Service):
             branch = self.get(f"/projects/{project_id}/repository/branches/{quoted_ref}")
             if not branch:
                 continue
-            print(f"null\t-\t{project['path_with_namespace']}\t{ref}"
-                  f"\t{branch['commit']['title']}\t{branch['web_url']}")
+            commit = branch["commit"]
+            print(f"null\t-\t{commit['committed_date'][:10]}\t{branch['web_url']}"
+                  f"\t{ref}\t{commit['title']}")
 
     def mr_create(self, remote=None, source_branch=None, target_branch=None,
                   title=None, description=None, **kwargs):

@@ -59,7 +59,8 @@ For a self-hosted GitLab instance, pass its API base url:
 
 `githost gitlab ls-mr` lists your open and merged merge requests across all
 projects, then the branches you pushed to that have neither, with `null` in the
-first column. Default branches and deleted branches are skipped.
+first column. Default branches and deleted branches are skipped. Columns: MR,
+state, last modified date, url, branch, title.
 
 Inside a clone of a GitLab project (the `gitlab` remote is used if present,
 otherwise `origin`; override with `-R REMOTE`):

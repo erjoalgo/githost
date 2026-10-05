@@ -184,15 +184,17 @@ class GitlabProjectTest(unittest.TestCase):
 
         def mr(project_id, path, iid, source, title, draft=False):
             return {"source_project_id": project_id, "source_branch": source,
-                    "references": {"full": f"{path}!{iid}"}, "draft": draft,
-                    "title": title, "web_url": f"https://gitlab.com/{path}/-/merge_requests/{iid}"}
+                    "iid": iid, "draft": draft, "title": title,
+                    "updated_at": f"2026-09-{iid:02}T10:00:00.000Z",
+                    "web_url": f"https://gitlab.com/{path}/-/merge_requests/{iid}"}
 
         def push(project_id, ref, ref_type="branch"):
             return {"project_id": project_id,
                     "push_data": {"ref": ref, "ref_type": ref_type}}
 
         def branch(path, name):
-            return {"commit": {"title": f"wip on {name}"},
+            return {"commit": {"title": f"wip on {name}",
+                               "committed_date": "2026-10-01T09:00:00.000+02:00"},
                     "web_url": f"https://gitlab.com/{path}/-/tree/{name}"}
         mrs = "/merge_requests?state={}&scope=created_by_me&per_page=100&page=1"
         responses = {
@@ -223,13 +225,14 @@ class GitlabProjectTest(unittest.TestCase):
 
         out = self.output_of(self.service.mr_list)
         self.assertEqual(out.splitlines(), [
-            "!7\topened\tgrp/one\topen-mr\t[draft] Add feat"
-            "\thttps://gitlab.com/grp/one/-/merge_requests/7",
-            "!5\tmerged\tgrp/one\tmerged-mr\tFix bug"
-            "\thttps://gitlab.com/grp/one/-/merge_requests/5",
-            "null\t-\tgrp/one\tfeat\twip on feat\thttps://gitlab.com/grp/one/-/tree/feat",
-            "null\t-\tgrp/three\tme/wip\twip on me/wip"
-            "\thttps://gitlab.com/grp/three/-/tree/me/wip"])
+            "!7\topened\t2026-09-07\thttps://gitlab.com/grp/one/-/merge_requests/7"
+            "\topen-mr\t[draft] Add feat",
+            "!5\tmerged\t2026-09-05\thttps://gitlab.com/grp/one/-/merge_requests/5"
+            "\tmerged-mr\tFix bug",
+            "null\t-\t2026-10-01\thttps://gitlab.com/grp/one/-/tree/feat"
+            "\tfeat\twip on feat",
+            "null\t-\t2026-10-01\thttps://gitlab.com/grp/three/-/tree/me/wip"
+            "\tme/wip\twip on me/wip"])
         urls = [call[0][0].url for call in self.send.call_args_list]
         self.assertEqual(urls.count("https://gitlab.com/api/v4/projects/1"), 1)
 
