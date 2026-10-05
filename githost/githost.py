@@ -501,7 +501,9 @@ def main():
     service = service_fn(auth=auth)
     if args.base_url:
         service.base = args.base_url.rstrip("/")
-    fn = getattr(service, args.func)
+    fn = getattr(service, args.func, None)
+    if not fn:
+        parser.error(f"{args.func} is not supported for {args.service}")
     logger.debug(args)
     fn(**vars(args))
     return 0

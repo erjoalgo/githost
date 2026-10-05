@@ -229,5 +229,14 @@ class GitlabProjectTest(unittest.TestCase):
                          {"source_branch": "feat", "target_branch": "dev",
                           "title": "T", "description": "D"})
 
+    def test_mr_list_unsupported_for_github(self):
+        argv = ["githost", "github", "ls-mr"]
+        with mock.patch.object(sys, "argv", argv), \
+             mock.patch("sys.stderr", new_callable=io.StringIO) as err, \
+             self.assertRaises(SystemExit):
+            githost.main()
+        self.assertIn("mr_list is not supported for github", err.getvalue())
+
+
 if __name__ == "__main__":
     unittest.main()
