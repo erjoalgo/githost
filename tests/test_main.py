@@ -38,14 +38,13 @@ class ServiceCommandTest(unittest.TestCase):
                 entry()
             list_repos.assert_called_once()
 
-    def test_missing_subcommand_is_a_usage_error(self):
+    def test_missing_subcommand_prints_commands(self):
         for entry in [lambda: githost.main(["gitlab"]), githost.main_gitlab]:
             with mock.patch.object(sys, "argv", ["githost-gl"]), \
-                 mock.patch("sys.stderr", new_callable=io.StringIO) as err, \
-                 self.assertRaises(SystemExit) as ctx:
-                entry()
-            self.assertEqual(ctx.exception.code, 2)
-            self.assertIn("the following arguments are required: command", err.getvalue())
+                 mock.patch("sys.stderr", new_callable=io.StringIO) as err:
+                self.assertEqual(entry(), 0)
+            for command in ["key-post", "repo-list", "repo-create", "ls-mr", "create-mr"]:
+                self.assertIn(command, err.getvalue())
 
     def test_pyproject_scripts_resolve(self):
         path = os.path.join(os.path.dirname(__file__), "..", "pyproject.toml")

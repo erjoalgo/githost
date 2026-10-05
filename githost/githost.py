@@ -473,7 +473,7 @@ def main(argv=None):
     parser.add_argument("--version", action="version", version=__version__)
 
 
-    subparsers = parser.add_subparsers(help="", dest="command", required=True)
+    subparsers = parser.add_subparsers(help="", dest="command")
 
     parser_postkey = subparsers.add_parser("key-post", help="post an ssh key")
     parser_postkey.add_argument("-p", "--pubkey-path",
@@ -514,6 +514,9 @@ def main(argv=None):
         parser.print_help(sys.stderr)
         return 0
     args = parser.parse_args(argv)
+    if not args.command:
+        parser.print_help(sys.stderr)
+        return 0
 
     logger.setLevel(logging.DEBUG if args.verbose else logging.INFO)
 
