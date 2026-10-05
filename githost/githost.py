@@ -455,11 +455,23 @@ SERVICES = {name: service
             for service in [Github, Bitbucket, Gitlab]
             for name in (service.name, service.alias)}
 
-def main(argv=None):
-    """Main function."""
+def main(argv=None, service=None):
+    """Main function.
+
+    With a service class, as for githost-gl, the service argument is implied and
+    only the commands that service supports are offered."""
     argv = sys.argv[1:] if argv is None else argv
-    parser = argparse.ArgumentParser(fromfile_prefix_chars='@')
-    parser.add_argument("service", choices=list(SERVICES.keys()))
+
+    def supports(func):
+        return service is None or hasattr(service, func)
+
+    if service:
+        parser = argparse.ArgumentParser(prog=f"githost-{service.alias}",
+                                         fromfile_prefix_chars='@')
+        parser.set_defaults(service=service.name)
+    else:
+        parser = argparse.ArgumentParser(fromfile_prefix_chars='@')
+        parser.add_argument("service", choices=list(SERVICES.keys()))
     # help = "one of {}".format(" ".join(SERVICES.keys())))
     parser.add_argument("-a", "--authinfo", help=".authinfo or .netrc file path",
                         default=os.path.expanduser("~/.authinfo"))
@@ -482,7 +494,8 @@ def main(argv=None):
     parser_postkey.add_argument("-l", "--pubkey-label",
                                 default=f"githost-{platform.node()}",
                                 help="label for the public key")
-    parser_postkey.add_argument("-k", "--key-type", help="bitbucket key type")
+    if service in (None, Bitbucket):
+        parser_postkey.add_argument("-k", "--key-type", help="bitbucket key type")
     parser_postkey.set_defaults(func="post_key")
 
     parser_listrepos = subparsers.add_parser("repo-list", help="list available repositories")
@@ -496,19 +509,22 @@ def main(argv=None):
 
     remote_help = "git remote of the project (default: gitlab, else origin)"
 
-    parser_mrlist = subparsers.add_parser(
-        "ls-mr", help="list your open and merged merge requests, and pushed branches "
-        "without one, across all projects (gitlab)")
-    parser_mrlist.set_defaults(func="mr_list")
+    if supports("mr_list"):
+        parser_mrlist = subparsers.add_parser(
+            "ls-mr", help="list your open and merged merge requests, and pushed branches "
+            "without one, across all projects (gitlab)")
+        parser_mrlist.set_defaults(func="mr_list")
 
-    parser_mrcreate = subparsers.add_parser(
-        "create-mr", help="open a merge request for a pushed branch (gitlab)")
-    parser_mrcreate.add_argument("-R", "--remote", help=remote_help)
-    parser_mrcreate.add_argument("-s", "--source-branch", help="default: current branch")
-    parser_mrcreate.add_argument("-t", "--target-branch", help="default: project's default branch")
-    parser_mrcreate.add_argument("--title", help="default: edit the last commit message")
-    parser_mrcreate.add_argument("-d", "--description", help="merge request description")
-    parser_mrcreate.set_defaults(func="mr_create")
+    if supports("mr_create"):
+        parser_mrcreate = subparsers.add_parser(
+            "create-mr", help="open a merge request for a pushed branch (gitlab)")
+        parser_mrcreate.add_argument("-R", "--remote", help=remote_help)
+        parser_mrcreate.add_argument("-s", "--source-branch", help="default: current branch")
+        parser_mrcreate.add_argument("-t", "--target-branch",
+                                     help="default: project's default branch")
+        parser_mrcreate.add_argument("--title", help="default: edit the last commit message")
+        parser_mrcreate.add_argument("-d", "--description", help="merge request description")
+        parser_mrcreate.set_defaults(func="mr_create")
 
     if not argv:
         parser.print_help(sys.stderr)
@@ -541,15 +557,15 @@ def main(argv=None):
 
 def main_github():
     """Entry point for githost-gh: githost with the github service selected."""
-    return main(["github", *sys.argv[1:]])
+    return main(service=Github)
 
 def main_gitlab():
     """Entry point for githost-gl: githost with the gitlab service selected."""
-    return main(["gitlab", *sys.argv[1:]])
+    return main(service=Gitlab)
 
 def main_bitbucket():
     """Entry point for githost-bb: githost with the bitbucket service selected."""
-    return main(["bitbucket", *sys.argv[1:]])
+    return main(service=Bitbucket)
 
 if __name__ == "__main__":
     main()

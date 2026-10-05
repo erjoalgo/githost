@@ -46,6 +46,41 @@ class ServiceCommandTest(unittest.TestCase):
             for command in ["key-post", "repo-list", "repo-create", "ls-mr", "create-mr"]:
                 self.assertIn(command, err.getvalue())
 
+    def help_of(self, service):
+        """Returns the help githost-<alias> prints without arguments."""
+        with mock.patch("sys.stderr", new_callable=io.StringIO) as err:
+            self.assertEqual(githost.main([], service=service), 0)
+        return err.getvalue()
+
+    def test_service_help_is_specific(self):
+        gitlab = self.help_of(githost.Gitlab)
+        self.assertIn("usage: githost-gl", gitlab)
+        self.assertNotIn("{github", gitlab)
+        self.assertIn("ls-mr", gitlab)
+        self.assertIn("create-mr", gitlab)
+
+        github = self.help_of(githost.Github)
+        self.assertIn("usage: githost-gh", github)
+        self.assertNotIn("ls-mr", github)
+        self.assertNotIn("create-mr", github)
+
+    def test_key_type_only_for_bitbucket(self):
+        def key_post_help(argv, service=None):
+            with mock.patch("sys.stdout", new_callable=io.StringIO) as out, \
+                 self.assertRaises(SystemExit):
+                githost.main(argv, service=service)
+            return out.getvalue()
+        self.assertIn("--key-type", key_post_help(["key-post", "-h"], githost.Bitbucket))
+        self.assertNotIn("--key-type", key_post_help(["key-post", "-h"], githost.Gitlab))
+        self.assertIn("--key-type", key_post_help(["gitlab", "key-post", "-h"]))
+
+    def test_unsupported_command_is_rejected_by_parser(self):
+        with mock.patch("sys.stderr", new_callable=io.StringIO) as err, \
+             self.assertRaises(SystemExit) as ctx:
+            githost.main(["ls-mr"], service=githost.Github)
+        self.assertEqual(ctx.exception.code, 2)
+        self.assertIn("invalid choice: 'ls-mr'", err.getvalue())
+
     def test_pyproject_scripts_resolve(self):
         path = os.path.join(os.path.dirname(__file__), "..", "pyproject.toml")
         with open(path, "rb") as fh:
