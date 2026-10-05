@@ -288,9 +288,56 @@ class Bitbucket(Service):
         clone_url = f"ssh://git@bitbucket.com/{self.user()}/{repo_name}"
         self.git_add_remote("bitbucket", clone_url)
 
+class Gitlab(Service):
+    """Manage the interaction with a Gitlab repository host."""
+    name = "gitlab"
+    base = "https://gitlab.com/api/v4"
+
+    def token_url(self):
+        """Returns the url where a personal access token can be created."""
+        return f"https://{self.api_host()}/-/user_settings/personal_access_tokens"
+
+    def req_auth(self, req, prompt=None):
+        super().req_auth(
+            req,
+            prompt=f"enter gitlab token with api scope ({self.token_url()}): ")
+        # gitlab's API authenticates with a token header, not basic auth
+        req.auth = None
+        req.headers["PRIVATE-TOKEN"] = self.auth.passwd
+
+    def post_key(self, pubkey_path, pubkey_label, **kwargs):
+        """Post the given ssh public key to gitlab."""
+        del kwargs
+        with open(pubkey_path, "r") as fh:
+            pubkey = fh.read().strip()
+        data = {"key": pubkey, "title": pubkey_label}
+        req = requests.Request("POST", "/user/keys", json=data)
+        self.req_send(req)
+
+    def list_repos(self, **kwargs):
+        """List the projects owned by the gitlab user."""
+        del kwargs
+        req = requests.Request("GET", "/projects", params={"owned": "true"})
+        self.req_send(req)
+
+    def repo_create(self, repo_name, description, private=True, **kwargs):
+        """Create a gitlab project with the given name and description."""
+        del kwargs
+        Github.ensure_on_git_repo_directory()
+        if not description:
+            description = interactive_edit(f"# enter {repo_name} description").strip()
+
+        data = {"name": repo_name,
+                "description": description,
+                "visibility": "private" if private else "public"}
+        req = requests.Request("POST", "/projects", json=data)
+        resp = self.req_send(req)
+        clone_url = resp.json()["ssh_url_to_repo"]
+        self.git_add_remote("gitlab", clone_url)
+
 SERVICES = dict((service.name, service)
                 for service  in
-                [Github, Bitbucket])
+                [Github, Bitbucket, Gitlab])
 
 def main():
     """Main function."""
@@ -300,6 +347,9 @@ def main():
     parser.add_argument("-a", "--authinfo", help=".authinfo or .netrc file path",
                         default=os.path.expanduser("~/.authinfo"))
     parser.add_argument("-u", "--username", help="user name for the selected service")
+    parser.add_argument("-b", "--base-url",
+                        help="API base url, e.g. https://gitlab.example.com/api/v4 "
+                        "for a self-hosted gitlab")
     parser.add_argument("-f", "--fingerprints",
                         help="display fingerprints of the selected service")
     parser.add_argument("-v", "--verbose", action="store_true")
@@ -344,6 +394,8 @@ def main():
     if not service_fn:
         raise ValueError(f"Invalid service: {args.service}")
     service = service_fn(auth=auth)
+    if args.base_url:
+        service.base = args.base_url.rstrip("/")
     fn = getattr(service, args.func)
     logger.debug(args)
     fn(**vars(args))

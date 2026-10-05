@@ -39,5 +39,20 @@ Publish the local git repo at the current directory to github:
 
 
 If required authentication is missing or invalid at any time, the tool will
-prompt and walk the user through how to obtain the appropriate github or bitbucket API tokens,
+prompt and walk the user through how to obtain the appropriate github, gitlab or bitbucket API tokens,
 and provide the option to cache those tokens locally.
+
+### GitLab
+
+The same commands work with `gitlab` in place of `github`, using a personal
+access token with the `api` scope:
+
+`githost gitlab key-post`
+
+`githost gitlab repo-list`
+
+`githost gitlab repo-create`
+
+For a self-hosted GitLab instance, pass its API base url:
+
+`githost gitlab -b https://gitlab.example.com/api/v4 repo-list`
