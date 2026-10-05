@@ -146,14 +146,18 @@ class Service:
         # uses basic auth by default
         req.auth = (self.user(), self.password(**kwargs))
 
-    def req_send(self, req, add_auth=True, print_json=True):
-        """Send the request after filling in auth details and parses the response."""
+    def req_send(self, req, add_auth=True, print_json=True, missing_ok=False):
+        """Send the request after filling in auth details and parses the response.
+
+        With missing_ok, a 404 returns None instead of raising."""
         if not urllib.parse.urlparse(req.url).hostname:
             req.url = self.base + req.url
         if add_auth:
             self.req_auth(req)
         logger.debug("%s %s:\n%s\n%s\n%s", req.method, req.url, req.json, req.data, req.params)
         resp = requests.Session().send(req.prepare())
+        if missing_ok and resp.status_code == 404:
+            return None
         if not resp.ok:
             print (resp.text)
             resp.raise_for_status()
@@ -376,24 +380,45 @@ class Gitlab(Service):
             page = resp.headers.get("X-Next-Page")
         return items
 
-    def mr_list(self, **kwargs):
-        """List the open merge requests created by the user across all projects."""
-        del kwargs
-        params = {"state": "opened", "scope": "created_by_me"}
-        for mr in self.get_all("/merge_requests", params):
-            draft = "[draft] " if mr.get("draft") else ""
-            print(f"{mr['references']['full']}\t{mr['source_branch']} -> {mr['target_branch']}"
-                  f"\t{draft}{mr['title']}\t{mr['web_url']}")
+    def get(self, url, params=None):
+        """GET a gitlab resource, or None if it does not exist."""
+        req = requests.Request("GET", url, params=params)
+        resp = self.req_send(req, print_json=False, missing_ok=True)
+        return None if resp is None else resp.json()
 
-    def branch_list(self, remote=None, **kwargs):
-        """List the branches not merged into the project's default branch."""
+    def mr_list(self, **kwargs):
+        """List the user's open and merged merge requests across all projects,
+        followed by the branches they pushed to that have neither, as MR null."""
         del kwargs
-        url = f"/projects/{self.project_id(remote)}/repository/branches"
-        for branch in self.get_all(url):
-            if branch["merged"] or branch["default"]:
+        has_mr = set()
+        for state in ("opened", "merged"):
+            params = {"state": state, "scope": "created_by_me"}
+            for mr in self.get_all("/merge_requests", params):
+                has_mr.add((mr["source_project_id"], mr["source_branch"]))
+                project, _, iid = mr["references"]["full"].rpartition("!")
+                draft = "[draft] " if mr.get("draft") else ""
+                print(f"!{iid}\t{state}\t{project}\t{mr['source_branch']}"
+                      f"\t{draft}{mr['title']}\t{mr['web_url']}")
+
+        pushed = dict.fromkeys(
+            (event["project_id"], event["push_data"]["ref"])
+            for event in self.get_all("/events", {"action": "pushed"})
+            if event["push_data"]["ref_type"] == "branch")
+        projects = {}
+        for project_id, ref in pushed:
+            if (project_id, ref) in has_mr:
                 continue
-            commit = branch["commit"]
-            print(f"{branch['name']}\t{commit['committed_date']}\t{commit['author_name']}")
+            if project_id not in projects:
+                projects[project_id] = self.get(f"/projects/{project_id}")
+            project = projects[project_id]
+            if not project or ref == project["default_branch"]:
+                continue
+            quoted_ref = urllib.parse.quote(ref, safe="")
+            branch = self.get(f"/projects/{project_id}/repository/branches/{quoted_ref}")
+            if not branch:
+                continue
+            print(f"null\t-\t{project['path_with_namespace']}\t{ref}"
+                  f"\t{branch['commit']['title']}\t{branch['web_url']}")
 
     def mr_create(self, remote=None, source_branch=None, target_branch=None,
                   title=None, description=None, **kwargs):
@@ -465,13 +490,9 @@ def main():
     remote_help = "git remote of the project (default: gitlab, else origin)"
 
     parser_mrlist = subparsers.add_parser(
-        "ls-mr", help="list your open merge requests across all projects (gitlab)")
+        "ls-mr", help="list your open and merged merge requests, and pushed branches "
+        "without one, across all projects (gitlab)")
     parser_mrlist.set_defaults(func="mr_list")
-
-    parser_branchlist = subparsers.add_parser(
-        "ls-branch", help="list branches not merged into the default branch (gitlab)")
-    parser_branchlist.add_argument("-R", "--remote", help=remote_help)
-    parser_branchlist.set_defaults(func="branch_list")
 
     parser_mrcreate = subparsers.add_parser(
         "create-mr", help="open a merge request for a pushed branch (gitlab)")

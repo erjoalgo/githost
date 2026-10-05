@@ -178,32 +178,60 @@ class GitlabProjectTest(unittest.TestCase):
             "https://gitlab.com/api/v4/things?per_page=100&page=1",
             "https://gitlab.com/api/v4/things?per_page=100&page=2"])
 
-    def test_mr_list_created_by_me_across_projects(self):
+    def test_mr_list_mrs_then_branches_without_mr(self):
         # no git repo needed: any git call would raise KeyError
         self.git_outputs.clear()
-        self.send.return_value = fake_response([{
-            "references": {"full": "grp/sub/proj!7"},
-            "source_branch": "feat", "target_branch": "main",
-            "draft": True, "title": "Add feat",
-            "web_url": "https://gitlab.com/grp/sub/proj/-/merge_requests/7"}])
-        out = self.output_of(self.service.mr_list)
-        self.assertEqual(
-            out, "grp/sub/proj!7\tfeat -> main\t[draft] Add feat"
-            "\thttps://gitlab.com/grp/sub/proj/-/merge_requests/7\n")
-        self.assertEqual(self.send.call_args[0][0].url,
-                         "https://gitlab.com/api/v4/merge_requests"
-                         "?state=opened&scope=created_by_me&per_page=100&page=1")
 
-    def test_branch_list_shows_only_unmerged(self):
-        def branch(name, merged=False, default=False):
-            return {"name": name, "merged": merged, "default": default,
-                    "commit": {"committed_date": "2026-10-01", "author_name": "Bob"}}
-        self.send.return_value = fake_response([
-            branch("main", default=True), branch("done", merged=True), branch("wip")])
-        out = self.output_of(self.service.branch_list)
-        self.assertEqual(out, "wip\t2026-10-01\tBob\n")
-        self.assertEqual(self.send.call_args[0][0].url,
-                         PROJECT_URL + "/repository/branches?per_page=100&page=1")
+        def mr(project_id, path, iid, source, title, draft=False):
+            return {"source_project_id": project_id, "source_branch": source,
+                    "references": {"full": f"{path}!{iid}"}, "draft": draft,
+                    "title": title, "web_url": f"https://gitlab.com/{path}/-/merge_requests/{iid}"}
+
+        def push(project_id, ref, ref_type="branch"):
+            return {"project_id": project_id,
+                    "push_data": {"ref": ref, "ref_type": ref_type}}
+
+        def branch(path, name):
+            return {"commit": {"title": f"wip on {name}"},
+                    "web_url": f"https://gitlab.com/{path}/-/tree/{name}"}
+        mrs = "/merge_requests?state={}&scope=created_by_me&per_page=100&page=1"
+        responses = {
+            mrs.format("opened"): [mr(1, "grp/one", 7, "open-mr", "Add feat", draft=True)],
+            mrs.format("merged"): [mr(1, "grp/one", 5, "merged-mr", "Fix bug")],
+            "/events?action=pushed&per_page=100&page=1": [
+                push(1, "feat"), push(1, "open-mr"), push(1, "merged-mr"),
+                push(1, "deleted"), push(1, "main"), push(1, "v1.0", ref_type="tag"),
+                push(2, "no-access"), push(1, "feat"), push(3, "me/wip")],
+            "/projects/1": {"path_with_namespace": "grp/one", "default_branch": "main"},
+            "/projects/3": {"path_with_namespace": "grp/three", "default_branch": "main"},
+            "/projects/1/repository/branches/feat": branch("grp/one", "feat"),
+            "/projects/1/repository/branches/open-mr": branch("grp/one", "open-mr"),
+            "/projects/1/repository/branches/merged-mr": branch("grp/one", "merged-mr"),
+            "/projects/3/repository/branches/me%2Fwip": branch("grp/three", "me/wip"),
+            # skipped as the default branch, though it exists
+            "/projects/1/repository/branches/main": branch("grp/one", "main"),
+            # a tag push, so skipped even though a branch of the same name exists
+            "/projects/1/repository/branches/v1.0": branch("grp/one", "v1.0"),
+        }
+
+        def send(req):
+            path = req.url[len("https://gitlab.com/api/v4"):]
+            if path in responses:
+                return fake_response(responses[path])
+            return fake_response({"message": "404 Not Found"}, 404)
+        self.send.side_effect = send
+
+        out = self.output_of(self.service.mr_list)
+        self.assertEqual(out.splitlines(), [
+            "!7\topened\tgrp/one\topen-mr\t[draft] Add feat"
+            "\thttps://gitlab.com/grp/one/-/merge_requests/7",
+            "!5\tmerged\tgrp/one\tmerged-mr\tFix bug"
+            "\thttps://gitlab.com/grp/one/-/merge_requests/5",
+            "null\t-\tgrp/one\tfeat\twip on feat\thttps://gitlab.com/grp/one/-/tree/feat",
+            "null\t-\tgrp/three\tme/wip\twip on me/wip"
+            "\thttps://gitlab.com/grp/three/-/tree/me/wip"])
+        urls = [call[0][0].url for call in self.send.call_args_list]
+        self.assertEqual(urls.count("https://gitlab.com/api/v4/projects/1"), 1)
 
     @mock.patch.object(githost, "interactive_edit",
                        return_value="Add feat\n\nLonger\nexplanation\n")
