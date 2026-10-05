@@ -395,6 +395,31 @@ class Gitlab(Service):
             commit = branch["commit"]
             print(f"{branch['name']}\t{commit['committed_date']}\t{commit['author_name']}")
 
+    def mr_create(self, remote=None, source_branch=None, target_branch=None,
+                  title=None, description=None, **kwargs):
+        """Open a merge request for an already-pushed branch.
+
+        Defaults to the current branch, the project's default branch as the
+        target, and the last commit's message as the title and description."""
+        del kwargs
+        project = self.project_id(remote)
+        source_branch = source_branch or git("rev-parse", "--abbrev-ref", "HEAD")
+        if not target_branch:
+            req = requests.Request("GET", f"/projects/{project}")
+            target_branch = self.req_send(req, print_json=False).json()["default_branch"]
+        if not title:
+            message = interactive_edit(git("log", "-1", "--format=%B", source_branch))
+            title, _, body = message.strip().partition("\n")
+            description = description or body.strip()
+
+        data = {"source_branch": source_branch,
+                "target_branch": target_branch,
+                "title": title,
+                "description": description or ""}
+        req = requests.Request("POST", f"/projects/{project}/merge_requests", json=data)
+        resp = self.req_send(req, print_json=False)
+        print(resp.json()["web_url"])
+
 SERVICES = dict((service.name, service)
                 for service  in
                 [Github, Bitbucket, Gitlab])
@@ -447,6 +472,15 @@ def main():
         "ls-branch", help="list branches not merged into the default branch (gitlab)")
     parser_branchlist.add_argument("-R", "--remote", help=remote_help)
     parser_branchlist.set_defaults(func="branch_list")
+
+    parser_mrcreate = subparsers.add_parser(
+        "create-mr", help="open a merge request for a pushed branch (gitlab)")
+    parser_mrcreate.add_argument("-R", "--remote", help=remote_help)
+    parser_mrcreate.add_argument("-s", "--source-branch", help="default: current branch")
+    parser_mrcreate.add_argument("-t", "--target-branch", help="default: project's default branch")
+    parser_mrcreate.add_argument("--title", help="default: edit the last commit message")
+    parser_mrcreate.add_argument("-d", "--description", help="merge request description")
+    parser_mrcreate.set_defaults(func="mr_create")
 
     if len(sys.argv) == 1:
         parser.print_help(sys.stderr)

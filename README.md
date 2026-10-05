@@ -63,3 +63,8 @@ otherwise `origin`; override with `-R REMOTE`):
 `githost gitlab ls-mr` lists open merge requests.
 
 `githost gitlab ls-branch` lists branches not merged into the default branch.
+
+`githost gitlab create-mr` opens a merge request from the current branch, which
+must already be pushed, into the default branch. The last commit message is
+opened in `$EDITOR` to become the title (first line) and description, unless
+`--title` is given.

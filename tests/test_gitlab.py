@@ -201,5 +201,33 @@ class GitlabProjectTest(unittest.TestCase):
         self.assertEqual(self.send.call_args[0][0].url,
                          PROJECT_URL + "/repository/branches?per_page=100&page=1")
 
+    @mock.patch.object(githost, "interactive_edit",
+                       return_value="Add feat\n\nLonger\nexplanation\n")
+    def test_mr_create_defaults(self, edit):
+        self.git_outputs["rev-parse --abbrev-ref HEAD"] = "feat\n"
+        self.git_outputs["log -1 --format=%B feat"] = "commit msg\n"
+        self.send.side_effect = [
+            fake_response({"default_branch": "main"}),
+            fake_response({"web_url": "https://gitlab.com/mr/1"}, 201)]
+        out = self.output_of(self.service.mr_create)
+        edit.assert_called_once_with("commit msg")
+        get, post = [call[0][0] for call in self.send.call_args_list]
+        self.assertEqual(get.url, PROJECT_URL)
+        self.assertEqual(post.method, "POST")
+        self.assertEqual(post.url, PROJECT_URL + "/merge_requests")
+        self.assertEqual(json.loads(post.body),
+                         {"source_branch": "feat", "target_branch": "main",
+                          "title": "Add feat", "description": "Longer\nexplanation"})
+        self.assertEqual(out, "https://gitlab.com/mr/1\n")
+
+    def test_mr_create_explicit_args_skip_lookups(self):
+        self.send.return_value = fake_response({"web_url": "u"}, 201)
+        self.output_of(self.service.mr_create, source_branch="feat",
+                       target_branch="dev", title="T", description="D")
+        self.assertEqual(self.send.call_count, 1)
+        self.assertEqual(json.loads(self.send.call_args[0][0].body),
+                         {"source_branch": "feat", "target_branch": "dev",
+                          "title": "T", "description": "D"})
+
 if __name__ == "__main__":
     unittest.main()
