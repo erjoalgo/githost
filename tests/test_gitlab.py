@@ -20,6 +20,16 @@ def fake_response(data, status=200):
     return resp
 
 
+def fake_git(outputs):
+    """Fake subprocess.check_output answering git commands from a dict."""
+    def check_output(cmd, **kwargs):
+        del kwargs
+        return outputs[" ".join(cmd[1:])]
+    return check_output
+
+
+REMOTES = {"remote": "origin\n",
+           "remote get-url origin": "git@gitlab.com:grp/sub/proj.git\n"}
 class GitlabTest(unittest.TestCase):
     """Check that gitlab requests hit the right endpoints with token auth."""
 
@@ -97,6 +107,55 @@ class GitlabTest(unittest.TestCase):
             githost.main()
         self.assertEqual(bases, ["https://gitlab.example.com/api/v4"])
 
+
+class ParseRemoteUrlTest(unittest.TestCase):
+    """Check host and project path are extracted from all git remote url forms."""
+
+    def test_url_forms(self):
+        for url in ["git@gitlab.com:grp/sub/proj.git",
+                    "ssh://git@gitlab.com:2222/grp/sub/proj.git",
+                    "https://gitlab.com/grp/sub/proj.git",
+                    "https://gitlab.com/grp/sub/proj/",
+                    "gitlab.com:grp/sub/proj"]:
+            self.assertEqual(githost.parse_remote_url(url),
+                             ("gitlab.com", "grp/sub/proj"), url)
+
+
+class GitlabProjectTest(unittest.TestCase):
+    """Check the merge request and branch commands."""
+
+    def setUp(self):
+        auth = githost.Auth(user="alice", passwd="glpat-test", authinfo=None)
+        self.service = githost.Gitlab(auth)
+        patcher = mock.patch.object(requests.Session, "send")
+        self.send = patcher.start()
+        self.addCleanup(patcher.stop)
+        self.git_outputs = dict(REMOTES)
+        patcher = mock.patch("subprocess.check_output",
+                             side_effect=fake_git(self.git_outputs))
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_project_id_prefers_gitlab_remote(self):
+        self.git_outputs["remote"] = "origin\ngitlab\n"
+        self.git_outputs["remote get-url gitlab"] = "git@gitlab.com:me/other.git"
+        self.assertEqual(self.service.project_id(), "me%2Fother")
+
+    def test_project_id_explicit_remote(self):
+        self.git_outputs["remote get-url upstream"] = "https://gitlab.com/up/proj.git"
+        self.assertEqual(self.service.project_id("upstream"), "up%2Fproj")
+
+    def test_project_id_rejects_remote_on_other_host(self):
+        self.git_outputs["remote get-url origin"] = "https://github.com/me/proj"
+        with self.assertRaises(SystemExit) as ctx:
+            self.service.project_id()
+        self.assertIn("remote origin is on github.com, not gitlab.com", str(ctx.exception))
+        self.send.assert_not_called()
+
+    def test_project_id_self_hosted(self):
+        self.service.base = "https://gitlab.example.com/api/v4"
+        self.git_outputs["remote get-url origin"] = "git@gitlab.example.com:grp/proj.git"
+        self.assertEqual(self.service.project_id(), "grp%2Fproj")
 
 if __name__ == "__main__":
     unittest.main()

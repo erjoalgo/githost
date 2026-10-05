@@ -51,6 +51,22 @@ def read_choice(choices, prompt="select: "):
         except Exception:
             pass
 
+def git(*args):
+    """Run a git command and return its stripped output."""
+    return subprocess.check_output(["git", *args], text=True).strip()
+
+def parse_remote_url(url):
+    """Extract the host and project path, e.g. group/sub/proj, from a git remote url."""
+    if "://" in url:
+        parsed = urllib.parse.urlparse(url)
+        host, path = parsed.hostname, parsed.path
+    else:
+        # scp-like syntax: git@host:group/proj.git
+        host, path = url.split(":", 1)
+        host = host.rsplit("@", 1)[-1]
+    path = path.strip("/")
+    return host, path[:-len(".git")] if path.endswith(".git") else path
+
 def x_www_browser(url):
     """Open the given url using the system's browser."""
     subprocess.run(["x-www-browser", url], check = True)
@@ -334,6 +350,18 @@ class Gitlab(Service):
         resp = self.req_send(req)
         clone_url = resp.json()["ssh_url_to_repo"]
         self.git_add_remote("gitlab", clone_url)
+
+    def project_id(self, remote=None):
+        """Returns the url-encoded gitlab project path of the current repo.
+
+        Defaults to the "gitlab" remote if it exists, otherwise "origin"."""
+        if not remote:
+            remote = "gitlab" if "gitlab" in git("remote").split() else "origin"
+        host, path = parse_remote_url(git("remote", "get-url", remote))
+        if host != self.api_host():
+            sys.exit(f"remote {remote} is on {host}, not {self.api_host()}: "
+                     "pick a gitlab remote with -R, or pass -b for a self-hosted gitlab")
+        return urllib.parse.quote(path, safe="")
 
 SERVICES = dict((service.name, service)
                 for service  in
