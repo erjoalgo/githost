@@ -7,7 +7,9 @@ Post the local ssh public key at `~/.ssh/id_rsa.pub` to github.
 `githost github key-post`
 
 Each service also has a two-letter alias: `gh` (github), `gl` (gitlab) and
-`bb` (bitbucket), e.g. `githost gh key-post`.
+`bb` (bitbucket), e.g. `githost gh key-post`, and its own command with the
+service already selected: `githost-gh`, `githost-gl` and `githost-bb`, e.g.
+`githost-gl ls-mr`.
 
 Use github's API to list the existing repositories in JSON format:
 

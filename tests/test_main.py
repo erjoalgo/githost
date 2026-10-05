@@ -1,6 +1,9 @@
 """Tests for the command-line entry point."""
 
+import importlib
+import os
 import sys
+import tomllib
 import unittest
 from unittest import mock
 
@@ -18,6 +21,31 @@ class AliasTest(unittest.TestCase):
                  mock.patch.object(service, "list_repos") as list_repos:
                 githost.main()
             list_repos.assert_called_once()
+
+
+
+class ServiceCommandTest(unittest.TestCase):
+    """Check the githost-gh, githost-gl and githost-bb commands."""
+
+    def test_commands_select_their_service(self):
+        for entry, service in [(githost.main_github, githost.Github),
+                               (githost.main_gitlab, githost.Gitlab),
+                               (githost.main_bitbucket, githost.Bitbucket)]:
+            argv = ["githost-xx", "-u", "alice", "repo-list"]
+            with mock.patch.object(sys, "argv", argv), \
+                 mock.patch.object(service, "list_repos") as list_repos:
+                entry()
+            list_repos.assert_called_once()
+
+    def test_pyproject_scripts_resolve(self):
+        path = os.path.join(os.path.dirname(__file__), "..", "pyproject.toml")
+        with open(path, "rb") as fh:
+            scripts = tomllib.load(fh)["project"]["scripts"]
+        self.assertEqual(sorted(scripts),
+                         ["githost", "githost-bb", "githost-gh", "githost-gl"])
+        for target in scripts.values():
+            module, _, attr = target.partition(":")
+            self.assertTrue(callable(getattr(importlib.import_module(module), attr)), target)
 
 
 if __name__ == "__main__":

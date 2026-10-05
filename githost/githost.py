@@ -455,8 +455,9 @@ SERVICES = {name: service
             for service in [Github, Bitbucket, Gitlab]
             for name in (service.name, service.alias)}
 
-def main():
+def main(argv=None):
     """Main function."""
+    argv = sys.argv[1:] if argv is None else argv
     parser = argparse.ArgumentParser(fromfile_prefix_chars='@')
     parser.add_argument("service", choices=list(SERVICES.keys()))
     # help = "one of {}".format(" ".join(SERVICES.keys())))
@@ -509,10 +510,10 @@ def main():
     parser_mrcreate.add_argument("-d", "--description", help="merge request description")
     parser_mrcreate.set_defaults(func="mr_create")
 
-    if len(sys.argv) == 1:
+    if not argv:
         parser.print_help(sys.stderr)
         return 0
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     logger.setLevel(logging.DEBUG if args.verbose else logging.INFO)
 
@@ -534,6 +535,18 @@ def main():
     logger.debug(args)
     fn(**vars(args))
     return 0
+
+def main_github():
+    """Entry point for githost-gh: githost with the github service selected."""
+    return main(["github", *sys.argv[1:]])
+
+def main_gitlab():
+    """Entry point for githost-gl: githost with the gitlab service selected."""
+    return main(["gitlab", *sys.argv[1:]])
+
+def main_bitbucket():
+    """Entry point for githost-bb: githost with the bitbucket service selected."""
+    return main(["bitbucket", *sys.argv[1:]])
 
 if __name__ == "__main__":
     main()
