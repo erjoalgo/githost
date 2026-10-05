@@ -82,6 +82,7 @@ class Auth:
 class Service:
     """Base class holding the common implementation for interacting with a git-hosting service."""
     name = None
+    alias = None
     base = None
     def __init__(self, auth):
         self.auth = auth
@@ -181,6 +182,7 @@ class Service:
 class Github(Service):
     """Manage the interaction with a Github repository host."""
     name = "github"
+    alias = "gh"
     base = "https://api.github.com"
 
     TOKEN_URL = "https://github.com/settings/tokens"
@@ -252,6 +254,7 @@ SHA256:br9IjFspm1vxR3iA35FWE+4VTyz1hYVLIE2t1/CeyWQ (DSA)
 class Bitbucket(Service):
     """Manage the interaction with a Bitbucket repository host."""
     name = "bitbucket"
+    alias = "bb"
     base = "https://api.bitbucket.org/2.0"
     # base = "http://localhost:1231"
 
@@ -311,6 +314,7 @@ class Bitbucket(Service):
 class Gitlab(Service):
     """Manage the interaction with a Gitlab repository host."""
     name = "gitlab"
+    alias = "gl"
     base = "https://gitlab.com/api/v4"
 
     def token_url(self):
@@ -447,9 +451,9 @@ class Gitlab(Service):
         resp = self.req_send(req, print_json=False)
         print(resp.json()["web_url"])
 
-SERVICES = dict((service.name, service)
-                for service  in
-                [Github, Bitbucket, Gitlab])
+SERVICES = {name: service
+            for service in [Github, Bitbucket, Gitlab]
+            for name in (service.name, service.alias)}
 
 def main():
     """Main function."""
@@ -526,7 +530,7 @@ def main():
         service.base = args.base_url.rstrip("/")
     fn = getattr(service, args.func, None)
     if not fn:
-        parser.error(f"{args.func} is not supported for {args.service}")
+        parser.error(f"{args.func} is not supported for {service.name}")
     logger.debug(args)
     fn(**vars(args))
     return 0
