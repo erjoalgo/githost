@@ -61,3 +61,5 @@ Inside a clone of a GitLab project (the `gitlab` remote is used if present,
 otherwise `origin`; override with `-R REMOTE`):
 
 `githost gitlab ls-mr` lists open merge requests.
+
+`githost gitlab ls-branch` lists branches not merged into the default branch.

@@ -385,6 +385,16 @@ class Gitlab(Service):
             print(f"!{mr['iid']}\t{mr['source_branch']} -> {mr['target_branch']}"
                   f"\t{mr['author']['username']}\t{draft}{mr['title']}\t{mr['web_url']}")
 
+    def branch_list(self, remote=None, **kwargs):
+        """List the branches not merged into the project's default branch."""
+        del kwargs
+        url = f"/projects/{self.project_id(remote)}/repository/branches"
+        for branch in self.get_all(url):
+            if branch["merged"] or branch["default"]:
+                continue
+            commit = branch["commit"]
+            print(f"{branch['name']}\t{commit['committed_date']}\t{commit['author_name']}")
+
 SERVICES = dict((service.name, service)
                 for service  in
                 [Github, Bitbucket, Gitlab])
@@ -432,6 +442,11 @@ def main():
     parser_mrlist = subparsers.add_parser("ls-mr", help="list open merge requests (gitlab)")
     parser_mrlist.add_argument("-R", "--remote", help=remote_help)
     parser_mrlist.set_defaults(func="mr_list")
+
+    parser_branchlist = subparsers.add_parser(
+        "ls-branch", help="list branches not merged into the default branch (gitlab)")
+    parser_branchlist.add_argument("-R", "--remote", help=remote_help)
+    parser_branchlist.set_defaults(func="branch_list")
 
     if len(sys.argv) == 1:
         parser.print_help(sys.stderr)

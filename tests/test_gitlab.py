@@ -190,5 +190,16 @@ class GitlabProjectTest(unittest.TestCase):
         self.assertEqual(self.send.call_args[0][0].url,
                          PROJECT_URL + "/merge_requests?state=opened&per_page=100&page=1")
 
+    def test_branch_list_shows_only_unmerged(self):
+        def branch(name, merged=False, default=False):
+            return {"name": name, "merged": merged, "default": default,
+                    "commit": {"committed_date": "2026-10-01", "author_name": "Bob"}}
+        self.send.return_value = fake_response([
+            branch("main", default=True), branch("done", merged=True), branch("wip")])
+        out = self.output_of(self.service.branch_list)
+        self.assertEqual(out, "wip\t2026-10-01\tBob\n")
+        self.assertEqual(self.send.call_args[0][0].url,
+                         PROJECT_URL + "/repository/branches?per_page=100&page=1")
+
 if __name__ == "__main__":
     unittest.main()
