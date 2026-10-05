@@ -135,7 +135,7 @@ class Service:
             authinfo = self.auth.authinfo
             passwd = self.auth.passwd
             if read_choice(["yes", "no"],
-                           prompt=f"write to {authinfo}? "):
+                           prompt=f"write to {authinfo}? ") == "yes":
                 self.write_authinfo(authinfo)
             self.auth.passwd = passwd
         return self.auth.passwd
