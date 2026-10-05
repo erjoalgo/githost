@@ -376,14 +376,14 @@ class Gitlab(Service):
             page = resp.headers.get("X-Next-Page")
         return items
 
-    def mr_list(self, remote=None, **kwargs):
-        """List the open merge requests of the current repo's project."""
+    def mr_list(self, **kwargs):
+        """List the open merge requests created by the user across all projects."""
         del kwargs
-        url = f"/projects/{self.project_id(remote)}/merge_requests"
-        for mr in self.get_all(url, {"state": "opened"}):
+        params = {"state": "opened", "scope": "created_by_me"}
+        for mr in self.get_all("/merge_requests", params):
             draft = "[draft] " if mr.get("draft") else ""
-            print(f"!{mr['iid']}\t{mr['source_branch']} -> {mr['target_branch']}"
-                  f"\t{mr['author']['username']}\t{draft}{mr['title']}\t{mr['web_url']}")
+            print(f"{mr['references']['full']}\t{mr['source_branch']} -> {mr['target_branch']}"
+                  f"\t{draft}{mr['title']}\t{mr['web_url']}")
 
     def branch_list(self, remote=None, **kwargs):
         """List the branches not merged into the project's default branch."""
@@ -464,8 +464,8 @@ def main():
 
     remote_help = "git remote of the project (default: gitlab, else origin)"
 
-    parser_mrlist = subparsers.add_parser("ls-mr", help="list open merge requests (gitlab)")
-    parser_mrlist.add_argument("-R", "--remote", help=remote_help)
+    parser_mrlist = subparsers.add_parser(
+        "ls-mr", help="list your open merge requests across all projects (gitlab)")
     parser_mrlist.set_defaults(func="mr_list")
 
     parser_branchlist = subparsers.add_parser(

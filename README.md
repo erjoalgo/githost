@@ -57,10 +57,10 @@ For a self-hosted GitLab instance, pass its API base url:
 
 `githost gitlab -b https://gitlab.example.com/api/v4 repo-list`
 
+`githost gitlab ls-mr` lists your open merge requests across all projects.
+
 Inside a clone of a GitLab project (the `gitlab` remote is used if present,
 otherwise `origin`; override with `-R REMOTE`):
-
-`githost gitlab ls-mr` lists open merge requests.
 
 `githost gitlab ls-branch` lists branches not merged into the default branch.
 
