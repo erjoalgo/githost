@@ -376,6 +376,15 @@ class Gitlab(Service):
             page = resp.headers.get("X-Next-Page")
         return items
 
+    def mr_list(self, remote=None, **kwargs):
+        """List the open merge requests of the current repo's project."""
+        del kwargs
+        url = f"/projects/{self.project_id(remote)}/merge_requests"
+        for mr in self.get_all(url, {"state": "opened"}):
+            draft = "[draft] " if mr.get("draft") else ""
+            print(f"!{mr['iid']}\t{mr['source_branch']} -> {mr['target_branch']}"
+                  f"\t{mr['author']['username']}\t{draft}{mr['title']}\t{mr['web_url']}")
+
 SERVICES = dict((service.name, service)
                 for service  in
                 [Github, Bitbucket, Gitlab])
@@ -417,6 +426,12 @@ def main():
     parser_repocreate.add_argument("-r", "--repo-name", default=os.path.basename(os.getcwd()),
                                    help="repository name")
     parser_repocreate.set_defaults(func="repo_create")
+
+    remote_help = "git remote of the project (default: gitlab, else origin)"
+
+    parser_mrlist = subparsers.add_parser("ls-mr", help="list open merge requests (gitlab)")
+    parser_mrlist.add_argument("-R", "--remote", help=remote_help)
+    parser_mrlist.set_defaults(func="mr_list")
 
     if len(sys.argv) == 1:
         parser.print_help(sys.stderr)

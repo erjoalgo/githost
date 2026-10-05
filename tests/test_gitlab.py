@@ -1,5 +1,6 @@
 """Tests for the gitlab service."""
 
+import io
 import json
 import os
 import sys
@@ -31,6 +32,9 @@ def fake_git(outputs):
 
 REMOTES = {"remote": "origin\n",
            "remote get-url origin": "git@gitlab.com:grp/sub/proj.git\n"}
+PROJECT_URL = "https://gitlab.com/api/v4/projects/grp%2Fsub%2Fproj"
+
+
 class GitlabTest(unittest.TestCase):
     """Check that gitlab requests hit the right endpoints with token auth."""
 
@@ -137,6 +141,12 @@ class GitlabProjectTest(unittest.TestCase):
         patcher.start()
         self.addCleanup(patcher.stop)
 
+    def output_of(self, fn, **kwargs):
+        """Returns what fn printed."""
+        with mock.patch("sys.stdout", new_callable=io.StringIO) as out:
+            fn(**kwargs)
+        return out.getvalue()
+
     def test_project_id_prefers_gitlab_remote(self):
         self.git_outputs["remote"] = "origin\ngitlab\n"
         self.git_outputs["remote get-url gitlab"] = "git@gitlab.com:me/other.git"
@@ -167,6 +177,18 @@ class GitlabProjectTest(unittest.TestCase):
         self.assertEqual(urls, [
             "https://gitlab.com/api/v4/things?per_page=100&page=1",
             "https://gitlab.com/api/v4/things?per_page=100&page=2"])
+
+    def test_mr_list(self):
+        self.send.return_value = fake_response([{
+            "iid": 7, "source_branch": "feat", "target_branch": "main",
+            "author": {"username": "bob"}, "draft": True, "title": "Add feat",
+            "web_url": "https://gitlab.com/grp/sub/proj/-/merge_requests/7"}])
+        out = self.output_of(self.service.mr_list)
+        self.assertEqual(
+            out, "!7\tfeat -> main\tbob\t[draft] Add feat"
+            "\thttps://gitlab.com/grp/sub/proj/-/merge_requests/7\n")
+        self.assertEqual(self.send.call_args[0][0].url,
+                         PROJECT_URL + "/merge_requests?state=opened&per_page=100&page=1")
 
 if __name__ == "__main__":
     unittest.main()
