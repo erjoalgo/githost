@@ -1,6 +1,7 @@
 """Tests for the command-line entry point."""
 
 import importlib
+import io
 import os
 import sys
 import tomllib
@@ -36,6 +37,15 @@ class ServiceCommandTest(unittest.TestCase):
                  mock.patch.object(service, "list_repos") as list_repos:
                 entry()
             list_repos.assert_called_once()
+
+    def test_missing_subcommand_is_a_usage_error(self):
+        for entry in [lambda: githost.main(["gitlab"]), githost.main_gitlab]:
+            with mock.patch.object(sys, "argv", ["githost-gl"]), \
+                 mock.patch("sys.stderr", new_callable=io.StringIO) as err, \
+                 self.assertRaises(SystemExit) as ctx:
+                entry()
+            self.assertEqual(ctx.exception.code, 2)
+            self.assertIn("the following arguments are required: command", err.getvalue())
 
     def test_pyproject_scripts_resolve(self):
         path = os.path.join(os.path.dirname(__file__), "..", "pyproject.toml")

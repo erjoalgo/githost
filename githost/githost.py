@@ -473,7 +473,7 @@ def main(argv=None):
     parser.add_argument("--version", action="version", version=__version__)
 
 
-    subparsers = parser.add_subparsers(help="")
+    subparsers = parser.add_subparsers(help="", dest="command", required=True)
 
     parser_postkey = subparsers.add_parser("key-post", help="post an ssh key")
     parser_postkey.add_argument("-p", "--pubkey-path",
