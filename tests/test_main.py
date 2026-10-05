@@ -64,6 +64,16 @@ class ServiceCommandTest(unittest.TestCase):
         self.assertNotIn("ls-mr", github)
         self.assertNotIn("create-mr", github)
 
+    def test_help_names_the_service(self):
+        for service, display_name in [(githost.Github, "GitHub"), (githost.Gitlab, "GitLab"),
+                                      (githost.Bitbucket, "Bitbucket")]:
+            self.assertIn(f"A command-line interface to {display_name}.",
+                          self.help_of(service))
+        with mock.patch("sys.stderr", new_callable=io.StringIO) as err:
+            githost.main([])
+        self.assertIn("A command-line interface to git repository hosting services",
+                      err.getvalue())
+
     def test_key_type_only_for_bitbucket(self):
         def key_post_help(argv, service=None):
             with mock.patch("sys.stdout", new_callable=io.StringIO) as out, \

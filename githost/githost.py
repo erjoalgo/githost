@@ -83,6 +83,7 @@ class Service:
     """Base class holding the common implementation for interacting with a git-hosting service."""
     name = None
     alias = None
+    display_name = None
     base = None
     def __init__(self, auth):
         self.auth = auth
@@ -182,6 +183,7 @@ class Service:
 class Github(Service):
     """Manage the interaction with a Github repository host."""
     name = "github"
+    display_name = "GitHub"
     alias = "gh"
     base = "https://api.github.com"
 
@@ -254,6 +256,7 @@ SHA256:br9IjFspm1vxR3iA35FWE+4VTyz1hYVLIE2t1/CeyWQ (DSA)
 class Bitbucket(Service):
     """Manage the interaction with a Bitbucket repository host."""
     name = "bitbucket"
+    display_name = "Bitbucket"
     alias = "bb"
     base = "https://api.bitbucket.org/2.0"
     # base = "http://localhost:1231"
@@ -314,6 +317,7 @@ class Bitbucket(Service):
 class Gitlab(Service):
     """Manage the interaction with a Gitlab repository host."""
     name = "gitlab"
+    display_name = "GitLab"
     alias = "gl"
     base = "https://gitlab.com/api/v4"
 
@@ -466,11 +470,13 @@ def main(argv=None, service=None):
         return service is None or hasattr(service, func)
 
     if service:
-        parser = argparse.ArgumentParser(prog=f"githost-{service.alias}",
-                                         fromfile_prefix_chars='@')
+        parser = argparse.ArgumentParser(
+            prog=f"githost-{service.alias}",
+            description=f"A command-line interface to {service.display_name}.",
+            fromfile_prefix_chars='@')
         parser.set_defaults(service=service.name)
     else:
-        parser = argparse.ArgumentParser(fromfile_prefix_chars='@')
+        parser = argparse.ArgumentParser(description=__doc__, fromfile_prefix_chars='@')
         parser.add_argument("service", choices=list(SERVICES.keys()))
     # help = "one of {}".format(" ".join(SERVICES.keys())))
     parser.add_argument("-a", "--authinfo", help=".authinfo or .netrc file path",
