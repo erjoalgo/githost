@@ -12,11 +12,12 @@ import requests
 from githost import githost
 
 
-def fake_response(data, status=200):
+def fake_response(data, status=200, headers=None):
     """Build a requests.Response carrying the given json data."""
     resp = requests.Response()
     resp.status_code = status
     resp._content = json.dumps(data).encode()
+    resp.headers.update(headers or {})
     return resp
 
 
@@ -156,6 +157,16 @@ class GitlabProjectTest(unittest.TestCase):
         self.service.base = "https://gitlab.example.com/api/v4"
         self.git_outputs["remote get-url origin"] = "git@gitlab.example.com:grp/proj.git"
         self.assertEqual(self.service.project_id(), "grp%2Fproj")
+
+    def test_get_all_follows_pages(self):
+        self.send.side_effect = [
+            fake_response([{"n": 1}], headers={"X-Next-Page": "2"}),
+            fake_response([{"n": 2}], headers={"X-Next-Page": ""})]
+        self.assertEqual(self.service.get_all("/things"), [{"n": 1}, {"n": 2}])
+        urls = [call[0][0].url for call in self.send.call_args_list]
+        self.assertEqual(urls, [
+            "https://gitlab.com/api/v4/things?per_page=100&page=1",
+            "https://gitlab.com/api/v4/things?per_page=100&page=2"])
 
 if __name__ == "__main__":
     unittest.main()

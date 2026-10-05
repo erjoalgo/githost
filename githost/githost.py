@@ -146,7 +146,7 @@ class Service:
         # uses basic auth by default
         req.auth = (self.user(), self.password(**kwargs))
 
-    def req_send(self, req, add_auth=True):
+    def req_send(self, req, add_auth=True, print_json=True):
         """Send the request after filling in auth details and parses the response."""
         if not urllib.parse.urlparse(req.url).hostname:
             req.url = self.base + req.url
@@ -158,8 +158,8 @@ class Service:
             print (resp.text)
             resp.raise_for_status()
         else:
-            data = json.loads(resp.text)
-            print (json.dumps(data, indent=4))
+            if print_json:
+                print (json.dumps(resp.json(), indent=4))
             return resp
         return None
 
@@ -362,6 +362,19 @@ class Gitlab(Service):
             sys.exit(f"remote {remote} is on {host}, not {self.api_host()}: "
                      "pick a gitlab remote with -R, or pass -b for a self-hosted gitlab")
         return urllib.parse.quote(path, safe="")
+
+    def get_all(self, url, params=None):
+        """GET every page of a gitlab list endpoint."""
+        params = dict(params or {}, per_page=100)
+        items = []
+        page = "1"
+        while page:
+            params["page"] = page
+            req = requests.Request("GET", url, params=dict(params))
+            resp = self.req_send(req, print_json=False)
+            items.extend(resp.json())
+            page = resp.headers.get("X-Next-Page")
+        return items
 
 SERVICES = dict((service.name, service)
                 for service  in
