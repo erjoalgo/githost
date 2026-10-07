@@ -32,9 +32,9 @@ Repository = "https://github.com/erjoalgo/githost/"
 
 [project.scripts]
 githost = "githost.githost:main"
-githost-gh = "githost.githost:main_github"
-githost-gl = "githost.githost:main_gitlab"
-githost-bb = "githost.githost:main_bitbucket"
+gh-gh = "githost.githost:main_github"
+gh-gl = "githost.githost:main_gitlab"
+gh-bb = "githost.githost:main_bitbucket"
 
 [project.entry-points."githost.githost"]
 githost = "githost.githost:main"
