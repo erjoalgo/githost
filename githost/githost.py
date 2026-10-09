@@ -462,7 +462,7 @@ SERVICES = {name: service
 def main(argv=None, service=None):
     """Main function.
 
-    With a service class, as for gh-gl, the service argument is implied and
+    With a service class, as for ggl, the service argument is implied and
     only the commands that service supports are offered."""
     argv = sys.argv[1:] if argv is None else argv
 
@@ -471,7 +471,7 @@ def main(argv=None, service=None):
 
     if service:
         parser = argparse.ArgumentParser(
-            prog=f"gh-{service.alias}",
+            prog=f"g{service.alias}",
             description=f"A command-line interface to {service.display_name}.",
             fromfile_prefix_chars='@')
         parser.set_defaults(service=service.name)
@@ -562,15 +562,15 @@ def main(argv=None, service=None):
     return 0
 
 def main_github():
-    """Entry point for gh-gh: githost with the github service selected."""
+    """Entry point for ggh: githost with the github service selected."""
     return main(service=Github)
 
 def main_gitlab():
-    """Entry point for gh-gl: githost with the gitlab service selected."""
+    """Entry point for ggl: githost with the gitlab service selected."""
     return main(service=Gitlab)
 
 def main_bitbucket():
-    """Entry point for gh-bb: githost with the bitbucket service selected."""
+    """Entry point for gbb: githost with the bitbucket service selected."""
     return main(service=Bitbucket)
 
 if __name__ == "__main__":
