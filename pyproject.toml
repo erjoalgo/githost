@@ -38,3 +38,7 @@ gbb = "githost.githost:main_bitbucket"
 
 [project.entry-points."githost.githost"]
 githost = "githost.githost:main"
+
+[tool.mypy]
+strict = true
+files = ["githost"]
