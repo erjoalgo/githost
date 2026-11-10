@@ -114,7 +114,10 @@ class Service:
 
     def api_host(self):
         """Extract the git-hosting service hostname."""
-        return urllib.parse.urlparse(self.base).hostname
+        hostname = urllib.parse.urlparse(self.base).hostname
+        if not hostname:
+            raise ValueError(f"no hostname in base url {self.base!r}; check --base-url")
+        return hostname
 
     def write_authinfo(self, authinfo):
         """Persist the gathered credentials into the user's authinfo."""
