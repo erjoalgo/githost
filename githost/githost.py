@@ -151,7 +151,7 @@ class Service:
     def req_send(self, req, add_auth=True, print_json=True, missing_ok=False):
         """Send the request after filling in auth details and parses the response.
 
-        With missing_ok, a 404 returns None instead of raising."""
+        Raises on an HTTP error. With missing_ok, a 404 returns None instead."""
         if not urllib.parse.urlparse(req.url).hostname:
             req.url = self.base + req.url
         if add_auth:
@@ -163,11 +163,9 @@ class Service:
         if not resp.ok:
             print (resp.text)
             resp.raise_for_status()
-        else:
-            if print_json:
-                print (json.dumps(resp.json(), indent=4))
-            return resp
-        return None
+        if print_json:
+            print (json.dumps(resp.json(), indent=4))
+        return resp
 
     def git_add_remote(self, name, url):
         """Register the current githost service locally as a git remote."""
