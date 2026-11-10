@@ -268,8 +268,8 @@ class Bitbucket(Service):
         key_types = ("deploy", "ssh")
         key_type = key_type or read_choice(key_types)
         if not key_type in key_types:
-            key_types = ",".join(key_types)
-            raise Exception(f"Must specificy key type: {key_types}")
+            key_types_str = ",".join(key_types)
+            raise Exception(f"Must specificy key type: {key_types_str}")
 
         data = {"key": pubkey, "label": pubkey_label}
         if key_type == "deploy":
