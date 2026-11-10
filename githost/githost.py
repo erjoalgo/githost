@@ -2,6 +2,8 @@
 
 """A command-line interface to git repository hosting services"""
 
+from __future__ import annotations
+
 import argparse
 import getpass
 import importlib.metadata
@@ -16,7 +18,12 @@ import traceback
 import urllib.parse
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Tuple, Type, overload
+
 import requests
+
+if TYPE_CHECKING:
+    from typing import Literal
 
 logger = logging.getLogger(__name__)
 logging.basicConfig()
@@ -26,7 +33,7 @@ try:
 except Exception:
     __version__ = f"unknown: {traceback.format_exc()}"
 
-def interactive_edit(initial_contents):
+def interactive_edit(initial_contents: str) -> str:
     """Open an editor to interactively edit a text template."""
     tmp = os.path.expanduser("~/.githost.tmp")
     editor = os.getenv("VISUAL") or os.getenv("EDITOR") or "vi"
@@ -39,7 +46,7 @@ def interactive_edit(initial_contents):
         contents = fh.read()
         return contents
 
-def read_choice(choices, prompt="select: "):
+def read_choice(choices: Sequence[str], prompt: str = "select: ") -> str:
     """Prompt user for the index of their selection."""
     while True:
         print ("\n".join(f"{i}: {choice}"
@@ -51,11 +58,11 @@ def read_choice(choices, prompt="select: "):
         except Exception:
             pass
 
-def git(*args):
+def git(*args: str) -> str:
     """Run a git command and return its stripped output."""
     return subprocess.check_output(["git", *args], text=True).strip()
 
-def parse_remote_url(url):
+def parse_remote_url(url: str) -> Tuple[Optional[str], str]:
     """Extract the host and project path, e.g. group/sub/proj, from a git remote url."""
     if "://" in url:
         parsed = urllib.parse.urlparse(url)
@@ -67,28 +74,29 @@ def parse_remote_url(url):
     path = path.strip("/")
     return host, path[:-len(".git")] if path.endswith(".git") else path
 
-def x_www_browser(url):
+def x_www_browser(url: str) -> None:
     """Open the given url using the system's browser."""
     subprocess.run(["x-www-browser", url], check = True)
 
 @dataclass
 class Auth:
     """Authentication information."""
-    user: str
-    passwd: str
-    authinfo: str
+    user: Optional[str]
+    passwd: Optional[str]
+    authinfo: Optional[str]
 
 
 class Service:
     """Base class holding the common implementation for interacting with a git-hosting service."""
-    name = None
-    alias = None
-    display_name = None
-    base = None
-    def __init__(self, auth):
+    name: str
+    alias: str
+    display_name: str
+    base: str
+
+    def __init__(self, auth: Auth) -> None:
         self.auth = auth
 
-    def read_authinfo(self):
+    def read_authinfo(self) -> Optional[Auth]:
         """Try looking up auth details from the user's authinfo file."""
         auth = self.auth
         authinfo = auth.authinfo
@@ -112,14 +120,14 @@ class Service:
                     return auth
         return None
 
-    def api_host(self):
+    def api_host(self) -> str:
         """Extract the git-hosting service hostname."""
         hostname = urllib.parse.urlparse(self.base).hostname
         if not hostname:
             raise ValueError(f"no hostname in base url {self.base!r}; check --base-url")
         return hostname
 
-    def write_authinfo(self, authinfo):
+    def write_authinfo(self, authinfo: Optional[str]) -> None:
         """Persist the gathered credentials into the user's authinfo."""
         user, passwd=self.user(), self.password()
         assert authinfo
@@ -127,14 +135,14 @@ class Service:
         with open(authinfo, "a") as fh:
             print(f"machine {machine} login {user} password {passwd}", file = fh)
 
-    def user(self, prompt="enter username: "):
+    def user(self, prompt: str = "enter username: ") -> str:
         """Read or prompt for the service username."""
         if not self.auth.user and not self.read_authinfo():
             self.auth.user = input(prompt)
         assert self.auth.user is not None
         return self.auth.user
 
-    def password(self, prompt="enter password: "):
+    def password(self, prompt: str = "enter password: ") -> str:
         """Read or prompt for the service password or token."""
         if not self.auth.passwd and not self.read_authinfo():
             self.auth.passwd = getpass.getpass(prompt)
@@ -147,13 +155,22 @@ class Service:
         assert self.auth.passwd is not None
         return self.auth.passwd
 
-    def req_auth(self, req, prompt=None):
+    def req_auth(self, req: requests.Request, prompt: Optional[str] = None) -> None:
         """Fill in the request's authentication details."""
         kwargs = {"prompt": prompt} if prompt else {}
         # uses basic auth by default
         req.auth = (self.user(), self.password(**kwargs))
 
-    def req_send(self, req, add_auth=True, print_json=True, missing_ok=False):
+    @overload
+    def req_send(self, req: requests.Request, add_auth: bool = ..., print_json: bool = ...,
+                 missing_ok: Literal[False] = ...) -> requests.Response: ...
+
+    @overload
+    def req_send(self, req: requests.Request, add_auth: bool = ..., print_json: bool = ...,
+                 *, missing_ok: bool) -> Optional[requests.Response]: ...
+
+    def req_send(self, req: requests.Request, add_auth: bool = True, print_json: bool = True,
+                 missing_ok: bool = False) -> Optional[requests.Response]:
         """Send the request after filling in auth details and parses the response.
 
         Raises on an HTTP error. With missing_ok, a 404 returns None instead."""
@@ -172,12 +189,12 @@ class Service:
             print (json.dumps(resp.json(), indent=4))
         return resp
 
-    def git_add_remote(self, name, url):
+    def git_add_remote(self, name: str, url: str) -> None:
         """Register the current githost service locally as a git remote."""
         cmd = ["git", "remote", "add", name, url]
         subprocess.run(cmd, check = True)
 
-    def repo_name(self):
+    def repo_name(self) -> str:
         """Returns the repository name."""
         cand = os.path.basename(os.getcwd())
         repo_name = input(f"repo name (default {cand}): ")
@@ -192,7 +209,7 @@ class Github(Service):
 
     TOKEN_URL = "https://github.com/settings/tokens"
 
-    def __init__(self, auth):
+    def __init__(self, auth: Auth) -> None:
         super().__init__(auth)
         self.fingerprints = """
         These are GitHub's public key fingerprints (in hexadecimal format):
@@ -205,7 +222,7 @@ SHA256:nThbg6kXUpJWGl7E1IGOCspRomTxdCARLviKw6E5SY8 (RSA)
 SHA256:br9IjFspm1vxR3iA35FWE+4VTyz1hYVLIE2t1/CeyWQ (DSA)
         """
 
-    def req_auth(self, req, prompt=None):
+    def req_auth(self, req: requests.Request, prompt: Optional[str] = None) -> None:
         super().req_auth(
             req,
             prompt=f"enter github token ({self.TOKEN_URL}): ")
@@ -213,7 +230,7 @@ SHA256:br9IjFspm1vxR3iA35FWE+4VTyz1hYVLIE2t1/CeyWQ (DSA)
         req.headers["Authorization"] = f"token {self.auth.passwd}"
 
     # TODO(ealfonso) rename to key_post
-    def post_key(self, pubkey_path, pubkey_label, **kwargs):
+    def post_key(self, pubkey_path: str, pubkey_label: str, **kwargs: Any) -> None:
         """Post the given ssh public key to github."""
         del kwargs
         with open(pubkey_path, "r") as fh:
@@ -223,7 +240,8 @@ SHA256:br9IjFspm1vxR3iA35FWE+4VTyz1hYVLIE2t1/CeyWQ (DSA)
         req = requests.Request("POST", url, json=data)
         self.req_send(req)
 
-    def repo_create(self, repo_name, description, private=True, **kwargs):
+    def repo_create(self, repo_name: str, description: Optional[str], private: bool = True,
+                    **kwargs: Any) -> None:
         """Create a github repo with the given name and description."""
         del kwargs
         self.ensure_on_git_repo_directory()
@@ -246,11 +264,11 @@ SHA256:br9IjFspm1vxR3iA35FWE+4VTyz1hYVLIE2t1/CeyWQ (DSA)
         self.git_add_remote("github", clone_url)
 
     @staticmethod
-    def ensure_on_git_repo_directory():
+    def ensure_on_git_repo_directory() -> None:
         """Make sure we're on a git repo directory."""
         subprocess.check_output(["git", "status"])
 
-    def list_repos(self, **kwargs):
+    def list_repos(self, **kwargs: Any) -> None:
         """List remote repositories."""
         del kwargs
         self.req_send(requests.Request("GET", "/user/repos"))
@@ -264,7 +282,8 @@ class Bitbucket(Service):
     base = "https://api.bitbucket.org/2.0"
     # base = "http://localhost:1231"
 
-    def post_key(self, pubkey_path, pubkey_label, key_type=None, repo_name=None, **kwargs):
+    def post_key(self, pubkey_path: str, pubkey_label: str, key_type: Optional[str] = None,
+                 repo_name: Optional[str] = None, **kwargs: Any) -> None:
         """Post the public ssh key to github."""
         del kwargs
         with open(pubkey_path, "r") as fh:
@@ -290,14 +309,15 @@ class Bitbucket(Service):
         req = requests.Request("POST", url, json=data)
         self.req_send(req)
 
-    def list_repos(self, **kwargs):
+    def list_repos(self, **kwargs: Any) -> None:
         """List the repos under the github account."""
         del kwargs
         url = f"/repositories/{self.user()}"
         req = requests.Request("GET", url)
         self.req_send(req)
 
-    def repo_create(self, repo_name, description, private=True, **kwargs):
+    def repo_create(self, repo_name: str, description: Optional[str], private: bool = True,
+                    **kwargs: Any) -> None:
         """Create the given repo on Bitbucket."""
         del kwargs
         repo_name = self.repo_name()
@@ -324,11 +344,11 @@ class Gitlab(Service):
     alias = "gl"
     base = "https://gitlab.com/api/v4"
 
-    def token_url(self):
+    def token_url(self) -> str:
         """Returns the url where a personal access token can be created."""
         return f"https://{self.api_host()}/-/user_settings/personal_access_tokens"
 
-    def req_auth(self, req, prompt=None):
+    def req_auth(self, req: requests.Request, prompt: Optional[str] = None) -> None:
         super().req_auth(
             req,
             prompt=f"enter gitlab token with api scope ({self.token_url()}): ")
@@ -336,7 +356,7 @@ class Gitlab(Service):
         req.auth = None
         req.headers["PRIVATE-TOKEN"] = self.auth.passwd
 
-    def post_key(self, pubkey_path, pubkey_label, **kwargs):
+    def post_key(self, pubkey_path: str, pubkey_label: str, **kwargs: Any) -> None:
         """Post the given ssh public key to gitlab."""
         del kwargs
         with open(pubkey_path, "r") as fh:
@@ -345,13 +365,14 @@ class Gitlab(Service):
         req = requests.Request("POST", "/user/keys", json=data)
         self.req_send(req)
 
-    def list_repos(self, **kwargs):
+    def list_repos(self, **kwargs: Any) -> None:
         """List the projects owned by the gitlab user."""
         del kwargs
         req = requests.Request("GET", "/projects", params={"owned": "true"})
         self.req_send(req)
 
-    def repo_create(self, repo_name, description, private=True, **kwargs):
+    def repo_create(self, repo_name: str, description: Optional[str], private: bool = True,
+                    **kwargs: Any) -> None:
         """Create a gitlab project with the given name and description."""
         del kwargs
         Github.ensure_on_git_repo_directory()
@@ -366,7 +387,7 @@ class Gitlab(Service):
         clone_url = resp.json()["ssh_url_to_repo"]
         self.git_add_remote("gitlab", clone_url)
 
-    def project_id(self, remote=None):
+    def project_id(self, remote: Optional[str] = None) -> str:
         """Returns the url-encoded gitlab project path of the current repo.
 
         Defaults to the "gitlab" remote if it exists, otherwise "origin"."""
@@ -378,11 +399,11 @@ class Gitlab(Service):
                      "pick a gitlab remote with -R, or pass -b for a self-hosted gitlab")
         return urllib.parse.quote(path, safe="")
 
-    def get_all(self, url, params=None):
+    def get_all(self, url: str, params: Optional[Dict[str, Any]] = None) -> List[Any]:
         """GET every page of a gitlab list endpoint."""
         params = dict(params or {}, per_page=100)
-        items = []
-        page = "1"
+        items: List[Any] = []
+        page: Optional[str] = "1"
         while page:
             params["page"] = page
             req = requests.Request("GET", url, params=dict(params))
@@ -391,13 +412,13 @@ class Gitlab(Service):
             page = resp.headers.get("X-Next-Page")
         return items
 
-    def get(self, url, params=None):
+    def get(self, url: str, params: Optional[Dict[str, Any]] = None) -> Any:
         """GET a gitlab resource, or None if it does not exist."""
         req = requests.Request("GET", url, params=params)
         resp = self.req_send(req, print_json=False, missing_ok=True)
         return None if resp is None else resp.json()
 
-    def mr_list(self, **kwargs):
+    def mr_list(self, **kwargs: Any) -> None:
         """List the user's open and merged merge requests across all projects,
         followed by the branches they pushed to that have neither, as MR null.
 
@@ -416,7 +437,7 @@ class Gitlab(Service):
             (event["project_id"], event["push_data"]["ref"])
             for event in self.get_all("/events", {"action": "pushed"})
             if event["push_data"]["ref_type"] == "branch")
-        projects = {}
+        projects: Dict[Any, Any] = {}
         for project_id, ref in pushed:
             if (project_id, ref) in has_mr:
                 continue
@@ -433,8 +454,9 @@ class Gitlab(Service):
             print(f"null\t-\t{commit['committed_date'][:10]}\t{branch['web_url']}"
                   f"\t{ref}\t{commit['title']}")
 
-    def mr_create(self, remote=None, source_branch=None, target_branch=None,
-                  title=None, description=None, **kwargs):
+    def mr_create(self, remote: Optional[str] = None, source_branch: Optional[str] = None,
+                  target_branch: Optional[str] = None, title: Optional[str] = None,
+                  description: Optional[str] = None, **kwargs: Any) -> None:
         """Open a merge request for an already-pushed branch.
 
         Defaults to the current branch, the project's default branch as the
@@ -458,18 +480,19 @@ class Gitlab(Service):
         resp = self.req_send(req, print_json=False)
         print(resp.json()["web_url"])
 
-SERVICES = {name: service
-            for service in [Github, Bitbucket, Gitlab]
-            for name in (service.name, service.alias)}
+SERVICES: Dict[str, Type[Service]] = {
+    name: service
+    for service in [Github, Bitbucket, Gitlab]
+    for name in (service.name, service.alias)}
 
-def main(argv=None, service=None):
+def main(argv: Optional[List[str]] = None, service: Optional[Type[Service]] = None) -> int:
     """Main function.
 
     With a service class, as for ggl, the service argument is implied and
     only the commands that service supports are offered."""
     argv = sys.argv[1:] if argv is None else argv
 
-    def supports(func):
+    def supports(func: str) -> bool:
         return service is None or hasattr(service, func)
 
     if service:
@@ -564,15 +587,15 @@ def main(argv=None, service=None):
     fn(**vars(args))
     return 0
 
-def main_github():
+def main_github() -> int:
     """Entry point for ggh: githost with the github service selected."""
     return main(service=Github)
 
-def main_gitlab():
+def main_gitlab() -> int:
     """Entry point for ggl: githost with the gitlab service selected."""
     return main(service=Gitlab)
 
-def main_bitbucket():
+def main_bitbucket() -> int:
     """Entry point for gbb: githost with the bitbucket service selected."""
     return main(service=Bitbucket)
 
