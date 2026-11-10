@@ -13,7 +13,7 @@ import re
 import subprocess
 import sys
 import traceback
-import urllib
+import urllib.parse
 
 from dataclasses import dataclass
 import requests
