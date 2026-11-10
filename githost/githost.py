@@ -548,15 +548,15 @@ def main(argv=None, service=None):
         requests_log.propagate = True
 
     auth = Auth(user=args.username, authinfo=args.authinfo, passwd=None)
-    service_fn = SERVICES.get(args.service)
-    if not service_fn:
+    service_cls = SERVICES.get(args.service)
+    if not service_cls:
         raise ValueError(f"Invalid service: {args.service}")
-    service = service_fn(auth=auth)
+    svc = service_cls(auth=auth)
     if args.base_url:
-        service.base = args.base_url.rstrip("/")
-    fn = getattr(service, args.func, None)
+        svc.base = args.base_url.rstrip("/")
+    fn = getattr(svc, args.func, None)
     if not fn:
-        parser.error(f"{args.func} is not supported for {service.name}")
+        parser.error(f"{args.func} is not supported for {svc.name}")
     logger.debug(args)
     fn(**vars(args))
     return 0
