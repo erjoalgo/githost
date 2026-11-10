@@ -131,6 +131,7 @@ class Service:
         """Read or prompt for the service username."""
         if not self.auth.user and not self.read_authinfo():
             self.auth.user = input(prompt)
+        assert self.auth.user is not None
         return self.auth.user
 
     def password(self, prompt="enter password: "):
@@ -143,6 +144,7 @@ class Service:
                            prompt=f"write to {authinfo}? ") == "yes":
                 self.write_authinfo(authinfo)
             self.auth.passwd = passwd
+        assert self.auth.passwd is not None
         return self.auth.passwd
 
     def req_auth(self, req, prompt=None):
