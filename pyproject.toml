@@ -21,7 +21,12 @@ license = "GPL-3.0-or-later"
 keywords = ["git", "github", "gitlab", "bitbucket", "client", "commandline", "cli"]
 classifiers = [
   "Development Status :: 4 - Beta",
-  "Programming Language :: Python"
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "Operating System :: OS Independent",
+  "Topic :: Software Development :: Version Control :: Git",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
 ]
 
 [project.urls]
