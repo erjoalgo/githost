@@ -74,10 +74,6 @@ def parse_remote_url(url: str) -> Tuple[Optional[str], str]:
     path = path.strip("/")
     return host, path[:-len(".git")] if path.endswith(".git") else path
 
-def x_www_browser(url: str) -> None:
-    """Open the given url using the system's browser."""
-    subprocess.run(["x-www-browser", url], check = True)
-
 @dataclass
 class Auth:
     """Authentication information."""
