@@ -513,9 +513,21 @@ def main(argv: Optional[List[str]] = None, service: Optional[Type[Service]] = No
     parser.add_argument("--version", action="version", version=__version__)
 
 
-    subparsers = parser.add_subparsers(help="", dest="command")
+    subparsers = parser.add_subparsers(help="", dest="command", metavar="COMMAND")
 
-    parser_postkey = subparsers.add_parser("key-post", help="post an ssh key")
+    def add_command(name: str, deprecated: Tuple[str, ...] = (),
+                    **kwargs: Any) -> argparse.ArgumentParser:
+        """Adds a subcommand that also accepts its old names, kept out of the help.
+
+        argparse has no hidden aliases, so the old names go straight into the
+        name-to-parser map; the COMMAND metavar keeps them out of the usage line."""
+        subparser = subparsers.add_parser(name, **kwargs)
+        for old_name in deprecated:
+            subparsers._name_parser_map[old_name] = subparser
+        return subparser
+
+    parser_postkey = add_command("add-key", deprecated=("key-post",),
+                                 help="add an ssh public key")
     parser_postkey.add_argument("-p", "--pubkey-path",
                                 default=os.path.expanduser("~/.ssh/id_rsa.pub"),
                                 help="path to ssh public key file")
@@ -526,10 +538,12 @@ def main(argv: Optional[List[str]] = None, service: Optional[Type[Service]] = No
         parser_postkey.add_argument("-k", "--key-type", help="bitbucket key type")
     parser_postkey.set_defaults(func="post_key")
 
-    parser_listrepos = subparsers.add_parser("repo-list", help="list available repositories")
+    parser_listrepos = add_command("ls-repo", deprecated=("repo-list",), aliases=["ls"],
+                                   help="list available repositories")
     parser_listrepos.set_defaults(func="list_repos")
 
-    parser_repocreate = subparsers.add_parser("repo-create", help="create a new repository")
+    parser_repocreate = add_command("create-repo", deprecated=("repo-create",),
+                                    help="create a new repository")
     parser_repocreate.add_argument("-d", "--description", help="repo description")
     parser_repocreate.add_argument("-r", "--repo-name", default=os.path.basename(os.getcwd()),
                                    help="repository name")

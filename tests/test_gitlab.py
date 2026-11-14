@@ -99,7 +99,7 @@ class GitlabTest(unittest.TestCase):
 
     def test_main_base_url_flag_sets_instance_base(self):
         argv = ["githost", "gitlab", "-u", "alice",
-                "-b", "https://gitlab.example.com/api/v4/", "repo-list"]
+                "-b", "https://gitlab.example.com/api/v4/", "ls-repo"]
         bases = []
         orig = githost.Gitlab.list_repos
 

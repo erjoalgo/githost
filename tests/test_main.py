@@ -17,7 +17,7 @@ class AliasTest(unittest.TestCase):
     def test_aliases(self):
         for alias, service in [("gh", githost.Github), ("gl", githost.Gitlab),
                                ("bb", githost.Bitbucket)]:
-            argv = ["githost", alias, "-u", "alice", "repo-list"]
+            argv = ["githost", alias, "-u", "alice", "ls-repo"]
             with mock.patch.object(sys, "argv", argv), \
                  mock.patch.object(service, "list_repos") as list_repos:
                 githost.main()
@@ -32,7 +32,7 @@ class ServiceCommandTest(unittest.TestCase):
         for entry, service in [(githost.main_github, githost.Github),
                                (githost.main_gitlab, githost.Gitlab),
                                (githost.main_bitbucket, githost.Bitbucket)]:
-            argv = ["gxx", "-u", "alice", "repo-list"]
+            argv = ["gxx", "-u", "alice", "ls-repo"]
             with mock.patch.object(sys, "argv", argv), \
                  mock.patch.object(service, "list_repos") as list_repos:
                 entry()
@@ -43,7 +43,7 @@ class ServiceCommandTest(unittest.TestCase):
             with mock.patch.object(sys, "argv", ["ggl"]), \
                  mock.patch("sys.stderr", new_callable=io.StringIO) as err:
                 self.assertEqual(entry(), 0)
-            for command in ["key-post", "repo-list", "repo-create", "ls-mr", "create-mr"]:
+            for command in ["add-key", "ls-repo", "create-repo", "ls-mr", "create-mr"]:
                 self.assertIn(command, err.getvalue())
 
     def help_of(self, service):
@@ -75,14 +75,25 @@ class ServiceCommandTest(unittest.TestCase):
                       err.getvalue())
 
     def test_key_type_only_for_bitbucket(self):
-        def key_post_help(argv, service=None):
+        def add_key_help(argv, service=None):
             with mock.patch("sys.stdout", new_callable=io.StringIO) as out, \
                  self.assertRaises(SystemExit):
                 githost.main(argv, service=service)
             return out.getvalue()
-        self.assertIn("--key-type", key_post_help(["key-post", "-h"], githost.Bitbucket))
-        self.assertNotIn("--key-type", key_post_help(["key-post", "-h"], githost.Gitlab))
-        self.assertIn("--key-type", key_post_help(["gitlab", "key-post", "-h"]))
+        self.assertIn("--key-type", add_key_help(["add-key", "-h"], githost.Bitbucket))
+        self.assertNotIn("--key-type", add_key_help(["add-key", "-h"], githost.Gitlab))
+        self.assertIn("--key-type", add_key_help(["gitlab", "add-key", "-h"]))
+
+    def test_old_command_names_still_work_but_are_hidden(self):
+        for name, func in [("key-post", "post_key"), ("repo-list", "list_repos"),
+                           ("ls", "list_repos"), ("repo-create", "repo_create")]:
+            with mock.patch.object(githost.Github, func) as method:
+                githost.main(["-u", "alice", name], service=githost.Github)
+            method.assert_called_once()
+        github = self.help_of(githost.Github)
+        self.assertIn("ls-repo (ls)", github)
+        for old_name in ["key-post", "repo-list", "repo-create"]:
+            self.assertNotIn(old_name, github)
 
     def test_unsupported_command_is_rejected_by_parser(self):
         with mock.patch("sys.stderr", new_callable=io.StringIO) as err, \

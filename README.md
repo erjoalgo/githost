@@ -4,16 +4,16 @@
 
 Post the local ssh public key at `~/.ssh/id_rsa.pub` to github.
 
-`githost github key-post`
+`githost github add-key`
 
 Each service also has a two-letter alias: `gh` (github), `gl` (gitlab) and
-`bb` (bitbucket), e.g. `githost gh key-post`, and its own command with the
+`bb` (bitbucket), e.g. `githost gh add-key`, and its own command with the
 service already selected: `ggh`, `ggl` and `gbb`, e.g.
 `ggl ls-mr`.
 
 Use github's API to list the existing repositories in JSON format:
 
-`githost github repo-list`
+`githost github ls-repo`
 
 ```
 [
@@ -40,7 +40,11 @@ Use github's API to list the existing repositories in JSON format:
 
 Publish the local git repo at the current directory to github:
 
-`githost github repo-create`
+`githost github create-repo`
+
+
+`ls` is short for `ls-repo`. The old command names `key-post`, `repo-list` and
+`repo-create` still work.
 
 
 If required authentication is missing or invalid at any time, the tool will
@@ -52,15 +56,15 @@ and provide the option to cache those tokens locally.
 The same commands work with `gitlab` in place of `github`, using a personal
 access token with the `api` scope:
 
-`githost gitlab key-post`
+`githost gitlab add-key`
 
-`githost gitlab repo-list`
+`githost gitlab ls-repo`
 
-`githost gitlab repo-create`
+`githost gitlab create-repo`
 
 For a self-hosted GitLab instance, pass its API base url:
 
-`githost gitlab -b https://gitlab.example.com/api/v4 repo-list`
+`githost gitlab -b https://gitlab.example.com/api/v4 ls-repo`
 
 `githost gitlab ls-mr` lists your open and merged merge requests across all
 projects, then the branches you pushed to that have neither, with `null` in the
