@@ -508,6 +508,11 @@ class Forgejo(Service):
             next_req = requests.Request("GET", next_url) if next_url else None
         return items
 
+    def get(self, url: str, params: Optional[Dict[str, Any]] = None) -> Any:
+        """GET a forgejo resource."""
+        req = requests.Request("GET", url, params=params)
+        return self.req_send(req, print_json=False).json()
+
     def post_key(self, pubkey_path: str, pubkey_label: str, **kwargs: Any) -> None:
         """Post the given ssh public key to forgejo."""
         del kwargs
@@ -547,11 +552,6 @@ class Forgejo(Service):
             sys.exit(f"remote {remote} is on {host}, not {self.api_host()}: "
                      "pick a forgejo remote with -R, or pass -b for another instance")
         return path
-
-    def get(self, url: str, params: Optional[Dict[str, Any]] = None) -> Any:
-        """GET a forgejo resource."""
-        req = requests.Request("GET", url, params=params)
-        return self.req_send(req, print_json=False).json()
 
     def pr_list(self, remote: Optional[str] = None, state: str = "open",
                 **kwargs: Any) -> None:
