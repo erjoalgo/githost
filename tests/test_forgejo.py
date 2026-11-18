@@ -209,3 +209,27 @@ A few things.
         self.send.return_value = fake_response([])
         with self.assertRaises(SystemExit):
             self.service.pr_number("alice/proj", None)
+
+    def test_pr_comment_reply_quotes_inline_comment(self, check_output):
+        del check_output
+        self.send.side_effect = [
+            fake_response([]),  # issue comments
+            fake_response([{"id": 2, "comments_count": 1}]),
+            fake_response([{"id": 10, "path": "a.py", "position": 12,
+                            "user": {"login": "bob"}, "body": "rename y\nplease"}]),
+            fake_response({"html_url": "http://x/pulls/7#issuecomment-11"})]
+        with mock.patch("sys.stdout", new_callable=io.StringIO) as out:
+            self.service.pr_comment(number=7, message="Done.", reply_to=10)
+        post = self.sent()[-1]
+        self.assertEqual((post.method, post.url),
+                         ("POST", f"{API}/repos/alice/proj/issues/7/comments"))
+        self.assertEqual(json.loads(post.body)["body"],
+                         "Re: bob's comment on `a.py:12`:\n> rename y\n> please\n\nDone.")
+        self.assertEqual(out.getvalue(), "http://x/pulls/7#issuecomment-11\n")
+
+    def test_pr_comment_reply_to_unknown_comment_exits(self, check_output):
+        del check_output
+        self.send.side_effect = [fake_response([]), fake_response([])]
+        with self.assertRaises(SystemExit) as ctx:
+            self.service.pr_comment(number=7, message="x", reply_to=99)
+        self.assertEqual(ctx.exception.code, "no comment 99 on PR #7")

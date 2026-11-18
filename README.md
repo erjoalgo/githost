@@ -102,3 +102,8 @@ review comments with their file, line and diff context (defaults to the PR
 for the current branch):
 
 `gfj show-pr [NUMBER]`
+
+Comment on a pull request. `-r` quotes the comment being answered, with its
+file:line for inline review comments (ids are shown by `show-pr`):
+
+`gfj comment-pr -r 42 -m "Fixed in the latest commit."`

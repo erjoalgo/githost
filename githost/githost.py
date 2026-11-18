@@ -647,6 +647,50 @@ class Forgejo(Service):
                     print("    " + hunk.replace("\n", "\n    "))
                 print("  " + comment["body"].replace("\n", "\n  "))
 
+    def pr_find_comment(self, repo: str, number: int, comment_id: int) -> Any:
+        """Returns the PR's general or inline review comment with the given id.
+
+        The API has no endpoint to get an inline comment by id, so this
+        searches the PR's comments, then each review's."""
+        for comment in self.get_all(f"/repos/{repo}/issues/{number}/comments"):
+            if comment["id"] == comment_id:
+                return comment
+        for review in self.get_all(f"/repos/{repo}/pulls/{number}/reviews"):
+            if not review.get("comments_count"):
+                continue
+            for comment in self.get(
+                    f"/repos/{repo}/pulls/{number}/reviews/{review['id']}/comments"):
+                if comment["id"] == comment_id:
+                    return comment
+        sys.exit(f"no comment {comment_id} on PR #{number}")
+
+    def pr_comment(self, remote: Optional[str] = None, number: Optional[int] = None,
+                   message: Optional[str] = None, reply_to: Optional[int] = None,
+                   **kwargs: Any) -> None:
+        """Comment on a pull request, optionally quoting the comment it replies to.
+
+        A reply to an inline review comment is posted on the PR, quoting the
+        comment's file:line and text, since the API can't post into its thread."""
+        del kwargs
+        repo = self.repo_path(remote)
+        number = self.pr_number(repo, number)
+        quote = ""
+        if reply_to:
+            target = self.pr_find_comment(repo, number, reply_to)
+            where = (f" on `{target['path']}:"
+                     f"{target.get('position') or target.get('original_position')}`"
+                     if target.get("path") else "")
+            quoted = "\n".join(f"> {line}" for line in target["body"].splitlines())
+            quote = f"Re: {target['user']['login']}'s comment{where}:\n{quoted}\n\n"
+        if not message:
+            message = interactive_edit(f"{quote}").strip()
+        else:
+            message = quote + message
+        req = requests.Request("POST", f"/repos/{repo}/issues/{number}/comments",
+                               json={"body": message})
+        resp = self.req_send(req, print_json=False)
+        print(resp.json()["html_url"])
+
 SERVICES: Dict[str, Type[Service]] = {
     name: service
     for service in [Github, Bitbucket, Gitlab, Forgejo]
@@ -766,6 +810,17 @@ def main(argv: Optional[List[str]] = None, service: Optional[Type[Service]] = No
                                    help="default: the open PR for the current branch")
         parser_prshow.add_argument("-R", "--remote", help=pr_remote_help)
         parser_prshow.set_defaults(func="pr_show")
+
+    if supports("pr_comment"):
+        parser_prcomment = subparsers.add_parser(
+            "comment-pr", help="comment on a pull request (forgejo)")
+        parser_prcomment.add_argument("number", nargs="?", type=int,
+                                      help="default: the open PR for the current branch")
+        parser_prcomment.add_argument("-R", "--remote", help=pr_remote_help)
+        parser_prcomment.add_argument("-m", "--message", help="default: open an editor")
+        parser_prcomment.add_argument("-r", "--reply-to", type=int, metavar="COMMENT_ID",
+                                      help="quote this comment (an id from show-pr)")
+        parser_prcomment.set_defaults(func="pr_comment")
 
     if not argv:
         parser.print_help(sys.stderr)
