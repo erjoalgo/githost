@@ -1,5 +1,6 @@
 """Tests for the forgejo service."""
 
+import io
 import json
 import os
 import tempfile
@@ -75,3 +76,78 @@ class ForgejoTest(unittest.TestCase):
         run.assert_called_once_with(
             ["git", "remote", "add", "forgejo", "http://localhost:3123/alice/proj.git"],
             check=True)
+
+
+REMOTES = {"remote": "origin\nforgejo\n",
+           "remote get-url forgejo": "http://localhost:3123/alice/proj.git\n",
+           "remote get-url origin": "git@github.com:alice/proj.git\n",
+           "rev-parse --abbrev-ref HEAD": "feature\n",
+           "log -1 --format=%B feature": "Add feature\n\nBecause.\n"}
+
+
+def fake_git(cmd, **kwargs):
+    del kwargs
+    return REMOTES[" ".join(cmd[1:])]
+
+
+@mock.patch("subprocess.check_output", side_effect=fake_git)
+class ForgejoPullRequestTest(unittest.TestCase):
+    """Check the pull request commands."""
+
+    def setUp(self):
+        auth = githost.Auth(user="alice", passwd="fj-token", authinfo=None)
+        self.service = githost.Forgejo(auth)
+        patcher = mock.patch.object(requests.Session, "send")
+        self.send = patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def sent(self):
+        return [call[0][0] for call in self.send.call_args_list]
+
+    def test_repo_path_prefers_forgejo_remote(self, check_output):
+        del check_output
+        self.assertEqual(self.service.repo_path(), "alice/proj")
+
+    def test_repo_path_rejects_remote_on_other_host(self, check_output):
+        del check_output
+        with self.assertRaises(SystemExit):
+            self.service.repo_path("origin")
+
+    def test_pr_list(self, check_output):
+        del check_output
+        self.send.return_value = fake_response([
+            {"number": 3, "state": "closed", "merged": True, "draft": False,
+             "updated_at": "2026-11-17T20:00:00Z", "html_url": "http://x/pulls/3",
+             "head": {"ref": "feature"}, "title": "Add feature"}])
+        with mock.patch("sys.stdout", new_callable=io.StringIO) as out:
+            self.service.pr_list(state="all")
+        req, = self.sent()
+        self.assertEqual(req.url,
+                         f"{API}/repos/alice/proj/pulls?state=all&sort=recentupdate&limit=50")
+        self.assertEqual(out.getvalue(),
+                         "#3\tmerged\t2026-11-17\thttp://x/pulls/3\tfeature\tAdd feature\n")
+
+    @mock.patch.object(githost, "interactive_edit", side_effect=lambda text: text)
+    def test_pr_create_defaults(self, edit, check_output):
+        del edit, check_output
+        self.send.side_effect = [fake_response({"default_branch": "master"}),
+                                 fake_response({"html_url": "http://x/pulls/4"})]
+        with mock.patch("sys.stdout", new_callable=io.StringIO) as out:
+            self.service.pr_create()
+        get, post = self.sent()
+        self.assertEqual(get.url, f"{API}/repos/alice/proj")
+        self.assertEqual((post.method, post.url), ("POST", f"{API}/repos/alice/proj/pulls"))
+        self.assertEqual(json.loads(post.body),
+                         {"head": "feature", "base": "master",
+                          "title": "Add feature", "body": "Because."})
+        self.assertEqual(out.getvalue(), "http://x/pulls/4\n")
+
+    def test_pr_create_explicit_args_skip_lookups(self, check_output):
+        del check_output
+        self.send.return_value = fake_response({"html_url": "http://x/pulls/5"})
+        with mock.patch("sys.stdout", new_callable=io.StringIO):
+            self.service.pr_create(source_branch="b", target_branch="main",
+                                   title="T", description="D")
+        post, = self.sent()
+        self.assertEqual(json.loads(post.body),
+                         {"head": "b", "base": "main", "title": "T", "body": "D"})

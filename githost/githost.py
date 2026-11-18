@@ -536,6 +536,60 @@ class Forgejo(Service):
         self.git_add_remote("forgejo", repo["clone_url"])
         print(repo["html_url"])
 
+    def repo_path(self, remote: Optional[str] = None) -> str:
+        """Returns owner/repo of the current repo on forgejo.
+
+        Defaults to the "forgejo" remote if it exists, otherwise "origin"."""
+        if not remote:
+            remote = "forgejo" if "forgejo" in git("remote").split() else "origin"
+        host, path = parse_remote_url(git("remote", "get-url", remote))
+        if host != self.api_host():
+            sys.exit(f"remote {remote} is on {host}, not {self.api_host()}: "
+                     "pick a forgejo remote with -R, or pass -b for another instance")
+        return path
+
+    def get(self, url: str, params: Optional[Dict[str, Any]] = None) -> Any:
+        """GET a forgejo resource."""
+        req = requests.Request("GET", url, params=params)
+        return self.req_send(req, print_json=False).json()
+
+    def pr_list(self, remote: Optional[str] = None, state: str = "open",
+                **kwargs: Any) -> None:
+        """List the current repo's pull requests, most recently updated first."""
+        del kwargs
+        repo = self.repo_path(remote)
+        prs = self.get_all(f"/repos/{repo}/pulls", {"state": state, "sort": "recentupdate"})
+        for pr in prs:
+            pr_state = "merged" if pr.get("merged") else pr["state"]
+            draft = "[draft] " if pr.get("draft") else ""
+            print(f"#{pr['number']}\t{pr_state}\t{pr['updated_at'][:10]}\t{pr['html_url']}"
+                  f"\t{pr['head']['ref']}\t{draft}{pr['title']}")
+
+    def pr_create(self, remote: Optional[str] = None, source_branch: Optional[str] = None,
+                  target_branch: Optional[str] = None, title: Optional[str] = None,
+                  description: Optional[str] = None, **kwargs: Any) -> None:
+        """Open a pull request for an already-pushed branch.
+
+        Defaults to the current branch, the repo's default branch as the
+        target, and the last commit's message as the title and description."""
+        del kwargs
+        repo = self.repo_path(remote)
+        source_branch = source_branch or git("rev-parse", "--abbrev-ref", "HEAD")
+        if not target_branch:
+            target_branch = self.get(f"/repos/{repo}")["default_branch"]
+        if not title:
+            message = interactive_edit(git("log", "-1", "--format=%B", source_branch))
+            title, _, body = message.strip().partition("\n")
+            description = description or body.strip()
+
+        data = {"head": source_branch,
+                "base": target_branch,
+                "title": title,
+                "body": description or ""}
+        req = requests.Request("POST", f"/repos/{repo}/pulls", json=data)
+        resp = self.req_send(req, print_json=False)
+        print(resp.json()["html_url"])
+
 SERVICES: Dict[str, Type[Service]] = {
     name: service
     for service in [Github, Bitbucket, Gitlab, Forgejo]
@@ -610,6 +664,7 @@ def main(argv: Optional[List[str]] = None, service: Optional[Type[Service]] = No
     parser_repocreate.set_defaults(func="repo_create")
 
     remote_help = "git remote of the project (default: gitlab, else origin)"
+    pr_remote_help = "git remote of the repo (default: forgejo, else origin)"
 
     if supports("mr_list"):
         parser_mrlist = subparsers.add_parser(
@@ -627,6 +682,25 @@ def main(argv: Optional[List[str]] = None, service: Optional[Type[Service]] = No
         parser_mrcreate.add_argument("--title", help="default: edit the last commit message")
         parser_mrcreate.add_argument("-d", "--description", help="merge request description")
         parser_mrcreate.set_defaults(func="mr_create")
+
+    if supports("pr_list"):
+        parser_prlist = subparsers.add_parser(
+            "ls-pr", help="list the current repo's pull requests (forgejo)")
+        parser_prlist.add_argument("-R", "--remote", help=pr_remote_help)
+        parser_prlist.add_argument("-s", "--state", choices=["open", "closed", "all"],
+                                   default="open")
+        parser_prlist.set_defaults(func="pr_list")
+
+    if supports("pr_create"):
+        parser_prcreate = subparsers.add_parser(
+            "create-pr", help="open a pull request for a pushed branch (forgejo)")
+        parser_prcreate.add_argument("-R", "--remote", help=pr_remote_help)
+        parser_prcreate.add_argument("-s", "--source-branch", help="default: current branch")
+        parser_prcreate.add_argument("-t", "--target-branch",
+                                     help="default: repo's default branch")
+        parser_prcreate.add_argument("--title", help="default: edit the last commit message")
+        parser_prcreate.add_argument("-d", "--description", help="pull request description")
+        parser_prcreate.set_defaults(func="pr_create")
 
     if not argv:
         parser.print_help(sys.stderr)

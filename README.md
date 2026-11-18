@@ -89,3 +89,10 @@ the API host, e.g. `machine localhost login alice password <token>`.
 Create a repo for the current directory and add it as the `forgejo` remote:
 
 `gfj create-repo -d "description"`
+
+Open a pull request for the current, already-pushed branch (the title and
+description default to the last commit message), and list the repo's PRs:
+
+`gfj create-pr`
+
+`gfj ls-pr -s all`
