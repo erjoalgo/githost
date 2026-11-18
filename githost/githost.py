@@ -84,6 +84,16 @@ class Auth:
     authinfo: Optional[str]
 
 
+@dataclass(order=True)
+class PrEvent:
+    """A comment or submitted review on a pull request, ordered by time."""
+    time: datetime
+    author: str
+    # comment:ID or review:ID, the ids show-pr prints
+    event: str
+    note: str = ""
+
+
 class Service:
     """Base class holding the common implementation for interacting with a git-hosting service."""
     name: str
@@ -661,18 +671,17 @@ class Forgejo(Service):
                     print("    " + hunk.replace("\n", "\n    "))
                 print("  " + comment["body"].replace("\n", "\n  "))
 
-    def pr_activity(self, repo: str, number: int) -> List[Tuple[datetime, str, str, str]]:
-        """Returns (time, author, event, note) for each comment and submitted review on a PR.
+    def pr_activity(self, repo: str, number: int) -> List[PrEvent]:
+        """Returns each comment and submitted review on a PR.
 
-        The event names it as comment:ID or review:ID, the ids show-pr prints.
         The time is the latest of creation and last edit, so edits count as activity."""
         def when(item: Any, *keys: str) -> datetime:
             return max(datetime.fromisoformat(item[key]) for key in keys if item.get(key))
-        activity = [(when(comment, "created_at", "updated_at"), comment["user"]["login"],
-                     f"comment:{comment['id']}", "")
+        activity = [PrEvent(when(comment, "created_at", "updated_at"), comment["user"]["login"],
+                            f"comment:{comment['id']}")
                     for comment in self.get_all(f"/repos/{repo}/issues/{number}/comments")]
-        activity += [(when(review, "submitted_at", "updated_at"), review["user"]["login"],
-                      f"review:{review['id']}", f" ({review['state']})")
+        activity += [PrEvent(when(review, "submitted_at", "updated_at"), review["user"]["login"],
+                             f"review:{review['id']}", f" ({review['state']})")
                      for review in self.get_all(f"/repos/{repo}/pulls/{number}/reviews")
                      if review["state"] != "PENDING"]
         return activity
@@ -697,24 +706,26 @@ class Forgejo(Service):
         if since == "none":
             since_time = None
         elif since:
-            times = [at for at, _, event, _ in activity if event == since]
+            times = [item.time for item in activity if item.event == since]
             if not times:
                 sys.exit(f"no event {since} on PR #{number}: expected comment:ID or review:ID "
                          "as shown by show-pr, or none")
             since_time = times[0]
         else:
-            since_time = max((at for at, author, _, _ in activity if author == me),
+            since_time = max((item.time for item in activity if item.author == me),
                              default=None)
         while True:
             if pr["state"] != "open":
                 print(f"#{number} is {'merged' if pr.get('merged') else pr['state']}")
                 return
             feedback = sorted(item for item in self.pr_activity(repo, number)
-                              if item[1] != me and (since_time is None or item[0] > since_time))
+                              if item.author != me
+                              and (since_time is None or item.time > since_time))
             if feedback:
-                for at, author, event, note in feedback:
-                    print(f"#{number}: {event}{note} by {author} at {at.isoformat()}")
-                print(f"to wait for more: wait-pr {number} --since {feedback[-1][2]}")
+                for item in feedback:
+                    print(f"#{number}: {item.event}{item.note} by {item.author}"
+                          f" at {item.time.isoformat()}")
+                print(f"to wait for more: wait-pr {number} --since {feedback[-1].event}")
                 return
             time.sleep(interval)
             pr = self.get(f"/repos/{repo}/pulls/{number}")
