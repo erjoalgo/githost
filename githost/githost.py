@@ -14,10 +14,12 @@ import platform
 import re
 import subprocess
 import sys
+import time
 import traceback
 import urllib.parse
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Tuple, Type, overload
 
 import requests
@@ -80,6 +82,16 @@ class Auth:
     user: Optional[str]
     passwd: Optional[str]
     authinfo: Optional[str]
+
+
+@dataclass(order=True)
+class PrEvent:
+    """A comment or submitted review on a pull request, ordered by time."""
+    time: datetime
+    author: str
+    # comment:ID or review:ID, the ids show-pr prints
+    event: str
+    note: str = ""
 
 
 class Service:
@@ -659,6 +671,70 @@ class Forgejo(Service):
                     print("    " + hunk.replace("\n", "\n    "))
                 print("  " + comment["body"].replace("\n", "\n  "))
 
+    def pr_activity(self, repo: str, number: int) -> List[PrEvent]:
+        """Returns each comment and submitted review on a PR.
+
+        The time is the latest of creation and last edit, so edits count as activity."""
+        def when(item: Any, *keys: str) -> datetime:
+            return max(datetime.fromisoformat(item[key]) for key in keys if item.get(key))
+        activity = []
+        for comment in self.get_all(f"/repos/{repo}/issues/{number}/comments"):
+            activity.append(PrEvent(when(comment, "created_at", "updated_at"),
+                                    comment["user"]["login"], f"comment:{comment['id']}"))
+        for review in self.get_all(f"/repos/{repo}/pulls/{number}/reviews"):
+            if review["state"] == "PENDING":
+                continue
+            activity.append(PrEvent(when(review, "submitted_at", "updated_at"),
+                                    review["user"]["login"], f"review:{review['id']}",
+                                    f" ({review['state']})"))
+        return activity
+
+    def pr_wait(self, remote: Optional[str] = None, number: Optional[int] = None,
+                interval: float = 30, since: Optional[str] = None, **kwargs: Any) -> None:
+        """Block until a PR gets feedback after a given event, or after our own last one.
+
+        Feedback is a comment or submitted review by anyone but the token's
+        user. By default it must come after our latest comment or review, or
+        any feedback counts if we have none, so feedback left before wait-pr
+        started is not missed. since names the event to wait after instead,
+        as comment:ID or review:ID (e.g. to skip feedback that needed no
+        reply), or "none" for any feedback. Also returns when the PR is
+        closed or merged."""
+        del kwargs
+        repo = self.repo_path(remote)
+        number = self.pr_number(repo, number)
+        me = self.get("/user")["login"]
+        # Earlier than any event: the cutoff when all feedback counts.
+        no_cutoff = datetime.min.replace(tzinfo=timezone.utc)
+        since_time: Optional[datetime] = None
+        while True:
+            pr = self.get(f"/repos/{repo}/pulls/{number}")
+            if pr["state"] != "open":
+                print(f"#{number} is {'merged' if pr.get('merged') else pr['state']}")
+                return
+            activity = self.pr_activity(repo, number)
+            if since_time is None:
+                if since == "none":
+                    since_time = no_cutoff
+                elif since:
+                    times = [item.time for item in activity if item.event == since]
+                    if not times:
+                        sys.exit(f"no event {since} on PR #{number}: expected comment:ID or "
+                                 "review:ID as shown by show-pr, or none")
+                    since_time = times[0]
+                else:
+                    since_time = max((item.time for item in activity if item.author == me),
+                                     default=no_cutoff)
+            feedback = sorted(item for item in activity
+                              if item.author != me and item.time > since_time)
+            if feedback:
+                for item in feedback:
+                    print(f"#{number}: {item.event}{item.note} by {item.author}"
+                          f" at {item.time.isoformat()}")
+                print(f"to wait for more: wait-pr {number} --since {feedback[-1].event}")
+                return
+            time.sleep(interval)
+
     def pr_find_comment(self, repo: str, number: int, comment_id: int) -> Any:
         """Returns the PR's general or inline review comment with the given id.
 
@@ -833,6 +909,19 @@ def main(argv: Optional[List[str]] = None, service: Optional[Type[Service]] = No
         parser_prcomment.add_argument("-r", "--reply-to", type=int, metavar="COMMENT_ID",
                                       help="quote this comment (an id from show-pr)")
         parser_prcomment.set_defaults(func="pr_comment")
+
+    if supports("pr_wait"):
+        parser_prwait = subparsers.add_parser(
+            "wait-pr", help="wait for new feedback on a pull request (forgejo)")
+        parser_prwait.add_argument("number", nargs="?", type=int,
+                                   help="default: the open PR for the current branch")
+        parser_prwait.add_argument("-R", "--remote", help=pr_remote_help)
+        parser_prwait.add_argument("-i", "--interval", type=float, default=30,
+                                   help="seconds between checks (default: 30)")
+        parser_prwait.add_argument("-s", "--since", metavar="EVENT",
+                                   help="only feedback after this comment:ID or review:ID, "
+                                   "or none for any (default: your last comment or review)")
+        parser_prwait.set_defaults(func="pr_wait")
 
     if not argv:
         parser.print_help(sys.stderr)

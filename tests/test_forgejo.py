@@ -261,3 +261,85 @@ A few things.
         with self.assertRaises(SystemExit) as ctx:
             self.service.pr_comment(number=7, message="x", reply_to=99)
         self.assertEqual(ctx.exception.code, "no comment 99 on PR #7")
+
+    @mock.patch("time.sleep")
+    def test_pr_wait_returns_on_feedback_newer_than_our_last_comment(self, sleep, check_output):
+        del check_output
+        pr = {"state": "open", "created_at": "2026-01-01T00:00:00Z"}
+        ours = {"id": 5, "user": {"login": "alice"},
+                "created_at": "2026-01-02T00:00:00Z", "updated_at": "2026-01-02T00:00:00Z"}
+        old = {"id": 4, "user": {"login": "bob"},
+               "created_at": "2026-01-01T12:00:00Z", "updated_at": "2026-01-01T12:00:00Z"}
+        review = {"id": 9, "user": {"login": "bob"}, "state": "REQUEST_CHANGES",
+                  "submitted_at": "2026-01-03T00:00:00Z", "updated_at": "2026-01-03T00:00:00Z"}
+        pending = dict(review, id=10, state="PENDING")
+        self.send.side_effect = [
+            fake_response({"login": "alice"}),
+            fake_response(pr),
+            fake_response([old, ours]), fake_response([pending]),  # nothing new
+            fake_response(pr),
+            fake_response([old, ours]), fake_response([review, pending]),
+        ]
+        with mock.patch("sys.stdout", new_callable=io.StringIO) as out:
+            self.service.pr_wait(number=7, interval=5)
+        sleep.assert_called_once_with(5)
+        self.assertEqual(out.getvalue(),
+                         "#7: review:9 (REQUEST_CHANGES) by bob at 2026-01-03T00:00:00+00:00\n"
+                         "to wait for more: wait-pr 7 --since review:9\n")
+
+    @mock.patch("time.sleep")
+    def test_pr_wait_since_skips_older_feedback(self, sleep, check_output):
+        del check_output
+        approval = {"id": 9, "user": {"login": "bob"}, "state": "APPROVED",
+                    "submitted_at": "2026-01-03T00:00:00Z", "updated_at": "2026-01-03T00:00:00Z"}
+        comment = {"id": 11, "user": {"login": "bob"},
+                   "created_at": "2026-01-04T00:00:00Z", "updated_at": "2026-01-04T00:00:00Z"}
+        pr = {"state": "open", "created_at": "2026-01-01T00:00:00Z"}
+        self.send.side_effect = [
+            fake_response({"login": "alice"}),
+            fake_response(pr),
+            fake_response([]), fake_response([approval]),
+            fake_response(pr),
+            fake_response([comment]), fake_response([approval]),
+        ]
+        with mock.patch("sys.stdout", new_callable=io.StringIO) as out:
+            self.service.pr_wait(number=7, since="review:9")
+        sleep.assert_called_once()
+        self.assertTrue(out.getvalue().startswith("#7: comment:11 by bob"))
+
+    @mock.patch("time.sleep")
+    def test_pr_wait_since_none_and_no_activity_of_ours_count_all_feedback(
+            self, sleep, check_output):
+        del sleep, check_output
+        old = {"id": 4, "user": {"login": "bob"},
+               "created_at": "2026-01-01T12:00:00Z", "updated_at": "2026-01-01T12:00:00Z"}
+        pr = {"state": "open", "created_at": "2026-01-02T00:00:00Z"}
+        for since in ("none", None):
+            self.send.side_effect = [fake_response({"login": "alice"}), fake_response(pr),
+                                     fake_response([old]), fake_response([])]
+            with mock.patch("sys.stdout", new_callable=io.StringIO) as out:
+                self.service.pr_wait(number=7, since=since)
+            self.assertTrue(out.getvalue().startswith("#7: comment:4 by bob"), since)
+
+    def test_pr_wait_unknown_since_event_exits(self, check_output):
+        del check_output
+        self.send.side_effect = [fake_response({"login": "alice"}),
+                                 fake_response({"state": "open", "created_at": "2026-01-01T00:00:00Z"}),
+                                 fake_response([]), fake_response([])]
+        with self.assertRaises(SystemExit) as ctx:
+            self.service.pr_wait(number=7, since="review:99")
+        self.assertIn("no event review:99", ctx.exception.code)
+
+    @mock.patch("time.sleep")
+    def test_pr_wait_returns_when_merged(self, sleep, check_output):
+        del check_output
+        self.send.side_effect = [
+            fake_response({"login": "alice"}),
+            fake_response({"state": "open", "created_at": "2026-01-01T00:00:00Z"}),
+            fake_response([]), fake_response([]),
+            fake_response({"state": "closed", "merged": True}),
+        ]
+        with mock.patch("sys.stdout", new_callable=io.StringIO) as out:
+            self.service.pr_wait(number=7)
+        sleep.assert_called_once()
+        self.assertEqual(out.getvalue(), "#7 is merged\n")
