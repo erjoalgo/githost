@@ -14,10 +14,12 @@ import platform
 import re
 import subprocess
 import sys
+import time
 import traceback
 import urllib.parse
 
 from dataclasses import dataclass
+from datetime import datetime
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Tuple, Type, overload
 
 import requests
@@ -659,6 +661,49 @@ class Forgejo(Service):
                     print("    " + hunk.replace("\n", "\n    "))
                 print("  " + comment["body"].replace("\n", "\n  "))
 
+    def pr_activity(self, repo: str, number: int) -> List[Tuple[datetime, str, str]]:
+        """Returns (time, author, description) for each comment and submitted review on a PR.
+
+        The time is the latest of creation and last edit, so edits count as activity."""
+        def when(item: Any, *keys: str) -> datetime:
+            return max(datetime.fromisoformat(item[key]) for key in keys if item.get(key))
+        activity = [(when(comment, "created_at", "updated_at"), comment["user"]["login"],
+                     f"comment {comment['id']}")
+                    for comment in self.get_all(f"/repos/{repo}/issues/{number}/comments")]
+        activity += [(when(review, "submitted_at", "updated_at"), review["user"]["login"],
+                      f"review {review['id']} ({review['state']})")
+                     for review in self.get_all(f"/repos/{repo}/pulls/{number}/reviews")
+                     if review["state"] != "PENDING"]
+        return activity
+
+    def pr_wait(self, remote: Optional[str] = None, number: Optional[int] = None,
+                interval: float = 30, **kwargs: Any) -> None:
+        """Block until a PR gets feedback newer than our own last activity on it.
+
+        Feedback is a comment or submitted review by anyone but the token's
+        user. Our last activity is our latest comment or review, or the PR's
+        creation, so feedback left before wait-pr started still counts. Also
+        returns when the PR is closed or merged."""
+        del kwargs
+        repo = self.repo_path(remote)
+        number = self.pr_number(repo, number)
+        me = self.get("/user")["login"]
+        pr = self.get(f"/repos/{repo}/pulls/{number}")
+        since = max([datetime.fromisoformat(pr["created_at"])] +
+                    [at for at, author, _ in self.pr_activity(repo, number) if author == me])
+        while True:
+            if pr["state"] != "open":
+                print(f"#{number} is {'merged' if pr.get('merged') else pr['state']}")
+                return
+            feedback = sorted(item for item in self.pr_activity(repo, number)
+                              if item[1] != me and item[0] > since)
+            if feedback:
+                for at, author, what in feedback:
+                    print(f"#{number}: {what} by {author} at {at.isoformat()}")
+                return
+            time.sleep(interval)
+            pr = self.get(f"/repos/{repo}/pulls/{number}")
+
     def pr_find_comment(self, repo: str, number: int, comment_id: int) -> Any:
         """Returns the PR's general or inline review comment with the given id.
 
@@ -833,6 +878,16 @@ def main(argv: Optional[List[str]] = None, service: Optional[Type[Service]] = No
         parser_prcomment.add_argument("-r", "--reply-to", type=int, metavar="COMMENT_ID",
                                       help="quote this comment (an id from show-pr)")
         parser_prcomment.set_defaults(func="pr_comment")
+
+    if supports("pr_wait"):
+        parser_prwait = subparsers.add_parser(
+            "wait-pr", help="wait for new feedback on a pull request (forgejo)")
+        parser_prwait.add_argument("number", nargs="?", type=int,
+                                   help="default: the open PR for the current branch")
+        parser_prwait.add_argument("-R", "--remote", help=pr_remote_help)
+        parser_prwait.add_argument("-i", "--interval", type=float, default=30,
+                                   help="seconds between checks (default: 30)")
+        parser_prwait.set_defaults(func="pr_wait")
 
     if not argv:
         parser.print_help(sys.stderr)

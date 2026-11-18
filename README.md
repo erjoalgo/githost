@@ -107,3 +107,9 @@ Comment on a pull request. `-r` quotes the comment being answered, with its
 file:line for inline review comments (ids are shown by `show-pr`):
 
 `gfj comment-pr -r 42 -m "Fixed in the latest commit."`
+
+Wait for new feedback on a pull request: blocks until someone else comments or
+submits a review after your own last comment, or the PR is closed or merged,
+then prints what arrived. It polls the API every 30 seconds (`-i` to change):
+
+`gfj wait-pr [NUMBER]`

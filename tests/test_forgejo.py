@@ -261,3 +261,43 @@ A few things.
         with self.assertRaises(SystemExit) as ctx:
             self.service.pr_comment(number=7, message="x", reply_to=99)
         self.assertEqual(ctx.exception.code, "no comment 99 on PR #7")
+
+    @mock.patch("time.sleep")
+    def test_pr_wait_returns_on_feedback_newer_than_our_last_comment(self, sleep, check_output):
+        del check_output
+        pr = {"state": "open", "created_at": "2026-01-01T00:00:00Z"}
+        ours = {"id": 5, "user": {"login": "alice"},
+                "created_at": "2026-01-02T00:00:00Z", "updated_at": "2026-01-02T00:00:00Z"}
+        old = {"id": 4, "user": {"login": "bob"},
+               "created_at": "2026-01-01T12:00:00Z", "updated_at": "2026-01-01T12:00:00Z"}
+        review = {"id": 9, "user": {"login": "bob"}, "state": "REQUEST_CHANGES",
+                  "submitted_at": "2026-01-03T00:00:00Z", "updated_at": "2026-01-03T00:00:00Z"}
+        pending = dict(review, id=10, state="PENDING")
+        self.send.side_effect = [
+            fake_response({"login": "alice"}),
+            fake_response(pr),
+            fake_response([old, ours]), fake_response([pending]),  # baseline
+            fake_response([old, ours]), fake_response([pending]),  # nothing new
+            fake_response(pr),
+            fake_response([old, ours]), fake_response([review, pending]),
+        ]
+        with mock.patch("sys.stdout", new_callable=io.StringIO) as out:
+            self.service.pr_wait(number=7, interval=5)
+        sleep.assert_called_once_with(5)
+        self.assertEqual(out.getvalue(),
+                         "#7: review 9 (REQUEST_CHANGES) by bob at 2026-01-03T00:00:00+00:00\n")
+
+    @mock.patch("time.sleep")
+    def test_pr_wait_returns_when_merged(self, sleep, check_output):
+        del check_output
+        self.send.side_effect = [
+            fake_response({"login": "alice"}),
+            fake_response({"state": "open", "created_at": "2026-01-01T00:00:00Z"}),
+            fake_response([]), fake_response([]),
+            fake_response([]), fake_response([]),
+            fake_response({"state": "closed", "merged": True}),
+        ]
+        with mock.patch("sys.stdout", new_callable=io.StringIO) as out:
+            self.service.pr_wait(number=7)
+        sleep.assert_called_once()
+        self.assertEqual(out.getvalue(), "#7 is merged\n")
