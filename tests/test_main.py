@@ -26,12 +26,13 @@ class AliasTest(unittest.TestCase):
 
 
 class ServiceCommandTest(unittest.TestCase):
-    """Check the ggh, ggl and gbb commands."""
+    """Check the ggh, ggl, gbb and gfj commands."""
 
     def test_commands_select_their_service(self):
         for entry, service in [(githost.main_github, githost.Github),
                                (githost.main_gitlab, githost.Gitlab),
-                               (githost.main_bitbucket, githost.Bitbucket)]:
+                               (githost.main_bitbucket, githost.Bitbucket),
+                               (githost.main_forgejo, githost.Forgejo)]:
             argv = ["gxx", "-u", "alice", "ls-repo"]
             with mock.patch.object(sys, "argv", argv), \
                  mock.patch.object(service, "list_repos") as list_repos:
@@ -107,7 +108,7 @@ class ServiceCommandTest(unittest.TestCase):
         with open(path, "rb") as fh:
             scripts = tomllib.load(fh)["project"]["scripts"]
         self.assertEqual(sorted(scripts),
-                         ["gbb", "ggh", "ggl", "githost"])
+                         ["gbb", "gfj", "ggh", "ggl", "githost"])
         for target in scripts.values():
             module, _, attr = target.partition(":")
             self.assertTrue(callable(getattr(importlib.import_module(module), attr)), target)

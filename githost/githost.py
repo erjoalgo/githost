@@ -476,9 +476,236 @@ class Gitlab(Service):
         resp = self.req_send(req, print_json=False)
         print(resp.json()["web_url"])
 
+class Forgejo(Service):
+    """Manage the interaction with a Forgejo instance.
+
+    Defaults to a private instance on localhost; pass -b for another one."""
+    name = "forgejo"
+    display_name = "Forgejo"
+    alias = "fj"
+    base = "http://localhost:3123/api/v1"
+
+    def web_url(self) -> str:
+        """Returns the instance's web root, e.g. http://localhost:3123."""
+        return self.base[:-len("/api/v1")] if self.base.endswith("/api/v1") else self.base
+
+    def req_auth(self, req: requests.Request, prompt: Optional[str] = None) -> None:
+        super().req_auth(
+            req,
+            prompt=f"enter forgejo token ({self.web_url()}/user/settings/applications): ")
+        req.auth = None
+        req.headers["Authorization"] = f"token {self.auth.passwd}"
+
+    def get_all(self, url: str, params: Optional[Dict[str, Any]] = None) -> List[Any]:
+        """GET every page of a forgejo list endpoint."""
+        items: List[Any] = []
+        next_req: Optional[requests.Request] = requests.Request(
+            "GET", url, params=dict(params or {}, limit=50))
+        while next_req:
+            resp = self.req_send(next_req, print_json=False)
+            items.extend(resp.json())
+            next_url = resp.links.get("next", {}).get("url")
+            next_req = requests.Request("GET", next_url) if next_url else None
+        return items
+
+    def get(self, url: str, params: Optional[Dict[str, Any]] = None) -> Any:
+        """GET a forgejo resource."""
+        req = requests.Request("GET", url, params=params)
+        return self.req_send(req, print_json=False).json()
+
+    def post_key(self, pubkey_path: str, pubkey_label: str, **kwargs: Any) -> None:
+        """Post the given ssh public key to forgejo."""
+        del kwargs
+        with open(pubkey_path, "r") as fh:
+            pubkey = fh.read().strip()
+        data = {"key": pubkey, "title": pubkey_label}
+        req = requests.Request("POST", "/user/keys", json=data)
+        self.req_send(req)
+
+    def list_repos(self, **kwargs: Any) -> None:
+        """List the repos the forgejo user can access."""
+        del kwargs
+        print(json.dumps(self.get_all("/user/repos"), indent=4))
+
+    def repo_create(self, repo_name: str, description: Optional[str], private: bool = True,
+                    **kwargs: Any) -> None:
+        """Create a forgejo repo and add it as the "forgejo" git remote."""
+        del kwargs
+        Github.ensure_on_git_repo_directory()
+        data = {"name": repo_name,
+                "description": description or "",
+                "private": private}
+        req = requests.Request("POST", "/user/repos", json=data)
+        resp = self.req_send(req, print_json=False)
+        repo = resp.json()
+        self.git_add_remote("forgejo", repo["clone_url"])
+        print(repo["html_url"])
+
+    def repo_path(self, remote: Optional[str] = None) -> str:
+        """Returns owner/repo of the current repo on forgejo.
+
+        Defaults to the "forgejo" remote if it exists, otherwise "origin"."""
+        if not remote:
+            remote = "forgejo" if "forgejo" in git("remote").split() else "origin"
+        host, path = parse_remote_url(git("remote", "get-url", remote))
+        if host != self.api_host():
+            sys.exit(f"remote {remote} is on {host}, not {self.api_host()}: "
+                     "pick a forgejo remote with -R, or pass -b for another instance")
+        return path
+
+    def pr_list(self, remote: Optional[str] = None, state: str = "open",
+                **kwargs: Any) -> None:
+        """List the current repo's pull requests, most recently updated first."""
+        del kwargs
+        repo = self.repo_path(remote)
+        prs = self.get_all(f"/repos/{repo}/pulls", {"state": state, "sort": "recentupdate"})
+        for pr in prs:
+            pr_state = "merged" if pr.get("merged") else pr["state"]
+            draft = "[draft] " if pr.get("draft") else ""
+            print(f"#{pr['number']}\t{pr_state}\t{pr['updated_at'][:10]}\t{pr['html_url']}"
+                  f"\t{pr['head']['ref']}\t{draft}{pr['title']}")
+
+    def pr_create(self, remote: Optional[str] = None, source_branch: Optional[str] = None,
+                  target_branch: Optional[str] = None, title: Optional[str] = None,
+                  description: Optional[str] = None, **kwargs: Any) -> None:
+        """Open a pull request for an already-pushed branch.
+
+        Defaults to the current branch, the repo's default branch as the
+        target, and the last commit's message as the title and description."""
+        del kwargs
+        repo = self.repo_path(remote)
+        source_branch = source_branch or git("rev-parse", "--abbrev-ref", "HEAD")
+        if not target_branch:
+            target_branch = self.get(f"/repos/{repo}")["default_branch"]
+        if not title:
+            message = interactive_edit(git("log", "-1", "--format=%B", source_branch))
+            title, _, body = message.strip().partition("\n")
+            description = description or body.strip()
+
+        data = {"head": source_branch,
+                "base": target_branch,
+                "title": title,
+                "body": description or ""}
+        req = requests.Request("POST", f"/repos/{repo}/pulls", json=data)
+        resp = self.req_send(req, print_json=False)
+        print(resp.json()["html_url"])
+
+    def pr_number(self, repo: str, number: Optional[int]) -> int:
+        """Returns the given PR number, or that of the open PR for the current checkout.
+
+        An open PR matches if its head branch, in this repo, is the current
+        branch, or its head commit is the current commit (e.g. on a detached
+        HEAD). More than one match is an error rather than a guess."""
+        if number:
+            return number
+        branch = git("rev-parse", "--abbrev-ref", "HEAD")
+        commit = git("rev-parse", "HEAD")
+        matches = [pr for pr in self.get_all(f"/repos/{repo}/pulls", {"state": "open"})
+                   if pr["head"]["sha"] == commit
+                   or (pr["head"]["ref"] == branch
+                       and (pr["head"].get("repo") or {}).get("full_name", repo) == repo)]
+        if len(matches) == 1:
+            return int(matches[0]["number"])
+        if matches:
+            numbers = ", ".join(f"#{pr['number']}" for pr in matches)
+            sys.exit(f"several open pull requests match {branch} at {commit[:10]}: "
+                     f"{numbers}; pass the PR number")
+        sys.exit(f"no open pull request for {branch} at {commit[:10]}; pass the PR number")
+
+    def pr_show(self, remote: Optional[str] = None, number: Optional[int] = None,
+                **kwargs: Any) -> None:
+        """Print a pull request with its comments, reviews and inline review comments.
+
+        Defaults to the open PR for the current branch. Inline comments show
+        file:line, the end of the diff hunk they're on, and whether they're
+        resolved or on outdated code."""
+        del kwargs
+        repo = self.repo_path(remote)
+        number = self.pr_number(repo, number)
+        pr = self.get(f"/repos/{repo}/pulls/{number}")
+        pr_state = "merged" if pr.get("merged") else pr["state"]
+        print(f"#{number} {pr_state}: {pr['title']}\n{pr['html_url']}\n"
+              f"{pr['head']['ref']} -> {pr['base']['ref']}")
+        if pr.get("body"):
+            print(f"\n{pr['body']}")
+
+        for comment in self.get_all(f"/repos/{repo}/issues/{number}/comments"):
+            print(f"\n--- comment {comment['id']} by {comment['user']['login']}"
+                  f" at {comment['created_at']}\n{comment['body']}")
+
+        for review in self.get_all(f"/repos/{repo}/pulls/{number}/reviews"):
+            comments = []
+            if review.get("comments_count"):
+                comments = self.get(
+                    f"/repos/{repo}/pulls/{number}/reviews/{review['id']}/comments")
+            if not review.get("body") and not comments:
+                continue
+            stale = " (stale)" if review.get("stale") else ""
+            print(f"\n--- review {review['id']} by {review['user']['login']}, "
+                  f"{review['state']}{stale}, at {review['submitted_at']}")
+            if review.get("body"):
+                print(review["body"])
+            for comment in comments:
+                line = comment.get("position") or comment.get("original_position")
+                notes = []
+                if comment.get("resolver"):
+                    notes.append(f"resolved by {comment['resolver']['login']}")
+                if not comment.get("position"):
+                    notes.append("outdated")
+                note = f" ({', '.join(notes)})" if notes else ""
+                hunk = "\n".join(comment.get("diff_hunk", "").splitlines()[-4:])
+                print(f"\n  > comment {comment['id']} on {comment['path']}:{line}{note}")
+                if hunk:
+                    print("    " + hunk.replace("\n", "\n    "))
+                print("  " + comment["body"].replace("\n", "\n  "))
+
+    def pr_find_comment(self, repo: str, number: int, comment_id: int) -> Any:
+        """Returns the PR's general or inline review comment with the given id.
+
+        The API has no endpoint to get an inline comment by id, so this
+        searches the PR's comments, then each review's."""
+        for comment in self.get_all(f"/repos/{repo}/issues/{number}/comments"):
+            if comment["id"] == comment_id:
+                return comment
+        for review in self.get_all(f"/repos/{repo}/pulls/{number}/reviews"):
+            if not review.get("comments_count"):
+                continue
+            for comment in self.get(
+                    f"/repos/{repo}/pulls/{number}/reviews/{review['id']}/comments"):
+                if comment["id"] == comment_id:
+                    return comment
+        sys.exit(f"no comment {comment_id} on PR #{number}")
+
+    def pr_comment(self, remote: Optional[str] = None, number: Optional[int] = None,
+                   message: Optional[str] = None, reply_to: Optional[int] = None,
+                   **kwargs: Any) -> None:
+        """Comment on a pull request, optionally quoting the comment it replies to.
+
+        A reply to an inline review comment is posted on the PR, quoting the
+        comment's file:line and text, since the API can't post into its thread."""
+        del kwargs
+        repo = self.repo_path(remote)
+        number = self.pr_number(repo, number)
+        quote = ""
+        if reply_to:
+            target = self.pr_find_comment(repo, number, reply_to)
+            where = (f" on `{target['path']}:"
+                     f"{target.get('position') or target.get('original_position')}`"
+                     if target.get("path") else "")
+            quoted = "\n".join(f"> {line}" for line in target["body"].splitlines())
+            quote = f"Re: {target['user']['login']}'s comment{where}:\n{quoted}\n\n"
+        if not message:
+            message = interactive_edit(f"{quote}").strip()
+        else:
+            message = quote + message
+        req = requests.Request("POST", f"/repos/{repo}/issues/{number}/comments",
+                               json={"body": message})
+        resp = self.req_send(req, print_json=False)
+        print(resp.json()["html_url"])
+
 SERVICES: Dict[str, Type[Service]] = {
     name: service
-    for service in [Github, Bitbucket, Gitlab]
+    for service in [Github, Bitbucket, Gitlab, Forgejo]
     for name in (service.name, service.alias)}
 
 def main(argv: Optional[List[str]] = None, service: Optional[Type[Service]] = None) -> int:
@@ -550,6 +777,7 @@ def main(argv: Optional[List[str]] = None, service: Optional[Type[Service]] = No
     parser_repocreate.set_defaults(func="repo_create")
 
     remote_help = "git remote of the project (default: gitlab, else origin)"
+    pr_remote_help = "git remote of the repo (default: forgejo, else origin)"
 
     if supports("mr_list"):
         parser_mrlist = subparsers.add_parser(
@@ -567,6 +795,44 @@ def main(argv: Optional[List[str]] = None, service: Optional[Type[Service]] = No
         parser_mrcreate.add_argument("--title", help="default: edit the last commit message")
         parser_mrcreate.add_argument("-d", "--description", help="merge request description")
         parser_mrcreate.set_defaults(func="mr_create")
+
+    if supports("pr_list"):
+        parser_prlist = subparsers.add_parser(
+            "ls-pr", help="list the current repo's pull requests (forgejo)")
+        parser_prlist.add_argument("-R", "--remote", help=pr_remote_help)
+        parser_prlist.add_argument("-s", "--state", choices=["open", "closed", "all"],
+                                   default="open")
+        parser_prlist.set_defaults(func="pr_list")
+
+    if supports("pr_create"):
+        parser_prcreate = subparsers.add_parser(
+            "create-pr", help="open a pull request for a pushed branch (forgejo)")
+        parser_prcreate.add_argument("-R", "--remote", help=pr_remote_help)
+        parser_prcreate.add_argument("-s", "--source-branch", help="default: current branch")
+        parser_prcreate.add_argument("-t", "--target-branch",
+                                     help="default: repo's default branch")
+        parser_prcreate.add_argument("--title", help="default: edit the last commit message")
+        parser_prcreate.add_argument("-d", "--description", help="pull request description")
+        parser_prcreate.set_defaults(func="pr_create")
+
+    if supports("pr_show"):
+        parser_prshow = subparsers.add_parser(
+            "show-pr", help="show a pull request with its comments and reviews (forgejo)")
+        parser_prshow.add_argument("number", nargs="?", type=int,
+                                   help="default: the open PR for the current branch")
+        parser_prshow.add_argument("-R", "--remote", help=pr_remote_help)
+        parser_prshow.set_defaults(func="pr_show")
+
+    if supports("pr_comment"):
+        parser_prcomment = subparsers.add_parser(
+            "comment-pr", help="comment on a pull request (forgejo)")
+        parser_prcomment.add_argument("number", nargs="?", type=int,
+                                      help="default: the open PR for the current branch")
+        parser_prcomment.add_argument("-R", "--remote", help=pr_remote_help)
+        parser_prcomment.add_argument("-m", "--message", help="default: open an editor")
+        parser_prcomment.add_argument("-r", "--reply-to", type=int, metavar="COMMENT_ID",
+                                      help="quote this comment (an id from show-pr)")
+        parser_prcomment.set_defaults(func="pr_comment")
 
     if not argv:
         parser.print_help(sys.stderr)
@@ -604,6 +870,10 @@ def main_github() -> int:
 def main_gitlab() -> int:
     """Entry point for ggl: githost with the gitlab service selected."""
     return main(service=Gitlab)
+
+def main_forgejo() -> int:
+    """Entry point for gfj: githost with the forgejo service selected."""
+    return main(service=Forgejo)
 
 def main_bitbucket() -> int:
     """Entry point for gbb: githost with the bitbucket service selected."""
