@@ -476,9 +476,69 @@ class Gitlab(Service):
         resp = self.req_send(req, print_json=False)
         print(resp.json()["web_url"])
 
+class Forgejo(Service):
+    """Manage the interaction with a Forgejo instance.
+
+    Defaults to a private instance on localhost; pass -b for another one."""
+    name = "forgejo"
+    display_name = "Forgejo"
+    alias = "fj"
+    base = "http://localhost:3123/api/v1"
+
+    def web_url(self) -> str:
+        """Returns the instance's web root, e.g. http://localhost:3123."""
+        return self.base[:-len("/api/v1")] if self.base.endswith("/api/v1") else self.base
+
+    def req_auth(self, req: requests.Request, prompt: Optional[str] = None) -> None:
+        super().req_auth(
+            req,
+            prompt=f"enter forgejo token ({self.web_url()}/user/settings/applications): ")
+        req.auth = None
+        req.headers["Authorization"] = f"token {self.auth.passwd}"
+
+    def get_all(self, url: str, params: Optional[Dict[str, Any]] = None) -> List[Any]:
+        """GET every page of a forgejo list endpoint."""
+        items: List[Any] = []
+        next_req: Optional[requests.Request] = requests.Request(
+            "GET", url, params=dict(params or {}, limit=50))
+        while next_req:
+            resp = self.req_send(next_req, print_json=False)
+            items.extend(resp.json())
+            next_url = resp.links.get("next", {}).get("url")
+            next_req = requests.Request("GET", next_url) if next_url else None
+        return items
+
+    def post_key(self, pubkey_path: str, pubkey_label: str, **kwargs: Any) -> None:
+        """Post the given ssh public key to forgejo."""
+        del kwargs
+        with open(pubkey_path, "r") as fh:
+            pubkey = fh.read().strip()
+        data = {"key": pubkey, "title": pubkey_label}
+        req = requests.Request("POST", "/user/keys", json=data)
+        self.req_send(req)
+
+    def list_repos(self, **kwargs: Any) -> None:
+        """List the repos the forgejo user can access."""
+        del kwargs
+        print(json.dumps(self.get_all("/user/repos"), indent=4))
+
+    def repo_create(self, repo_name: str, description: Optional[str], private: bool = True,
+                    **kwargs: Any) -> None:
+        """Create a forgejo repo and add it as the "forgejo" git remote."""
+        del kwargs
+        Github.ensure_on_git_repo_directory()
+        data = {"name": repo_name,
+                "description": description or "",
+                "private": private}
+        req = requests.Request("POST", "/user/repos", json=data)
+        resp = self.req_send(req, print_json=False)
+        repo = resp.json()
+        self.git_add_remote("forgejo", repo["clone_url"])
+        print(repo["html_url"])
+
 SERVICES: Dict[str, Type[Service]] = {
     name: service
-    for service in [Github, Bitbucket, Gitlab]
+    for service in [Github, Bitbucket, Gitlab, Forgejo]
     for name in (service.name, service.alias)}
 
 def main(argv: Optional[List[str]] = None, service: Optional[Type[Service]] = None) -> int:
@@ -604,6 +664,10 @@ def main_github() -> int:
 def main_gitlab() -> int:
     """Entry point for ggl: githost with the gitlab service selected."""
     return main(service=Gitlab)
+
+def main_forgejo() -> int:
+    """Entry point for gfj: githost with the forgejo service selected."""
+    return main(service=Forgejo)
 
 def main_bitbucket() -> int:
     """Entry point for gbb: githost with the bitbucket service selected."""

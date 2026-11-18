@@ -6,9 +6,9 @@ Post the local ssh public key at `~/.ssh/id_rsa.pub` to github.
 
 `githost github add-key`
 
-Each service also has a two-letter alias: `gh` (github), `gl` (gitlab) and
-`bb` (bitbucket), e.g. `githost gh add-key`, and its own command with the
-service already selected: `ggh`, `ggl` and `gbb`, e.g.
+Each service also has a two-letter alias: `gh` (github), `gl` (gitlab),
+`bb` (bitbucket) and `fj` (forgejo), e.g. `githost gh add-key`, and its own
+command with the service already selected: `ggh`, `ggl`, `gbb` and `gfj`, e.g.
 `ggl ls-mr`.
 
 Use github's API to list the existing repositories in JSON format:
@@ -78,3 +78,14 @@ otherwise `origin`; override with `-R REMOTE`):
 must already be pushed, into the default branch. The last commit message is
 opened in `$EDITOR` to become the title (first line) and description, unless
 `--title` is given.
+
+## Forgejo
+
+The forgejo service defaults to a private instance at `http://localhost:3123`;
+pass `-b https://forgejo.example.com/api/v1` for another one. It authenticates
+with an access token (Settings → Applications), stored in `~/.authinfo` under
+the API host, e.g. `machine localhost login alice password <token>`.
+
+Create a repo for the current directory and add it as the `forgejo` remote:
+
+`gfj create-repo -d "description"`
