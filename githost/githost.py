@@ -677,13 +677,16 @@ class Forgejo(Service):
         The time is the latest of creation and last edit, so edits count as activity."""
         def when(item: Any, *keys: str) -> datetime:
             return max(datetime.fromisoformat(item[key]) for key in keys if item.get(key))
-        activity = [PrEvent(when(comment, "created_at", "updated_at"), comment["user"]["login"],
-                            f"comment:{comment['id']}")
-                    for comment in self.get_all(f"/repos/{repo}/issues/{number}/comments")]
-        activity += [PrEvent(when(review, "submitted_at", "updated_at"), review["user"]["login"],
-                             f"review:{review['id']}", f" ({review['state']})")
-                     for review in self.get_all(f"/repos/{repo}/pulls/{number}/reviews")
-                     if review["state"] != "PENDING"]
+        activity = []
+        for comment in self.get_all(f"/repos/{repo}/issues/{number}/comments"):
+            activity.append(PrEvent(when(comment, "created_at", "updated_at"),
+                                    comment["user"]["login"], f"comment:{comment['id']}"))
+        for review in self.get_all(f"/repos/{repo}/pulls/{number}/reviews"):
+            if review["state"] == "PENDING":
+                continue
+            activity.append(PrEvent(when(review, "submitted_at", "updated_at"),
+                                    review["user"]["login"], f"review:{review['id']}",
+                                    f" ({review['state']})"))
         return activity
 
     def pr_wait(self, remote: Optional[str] = None, number: Optional[int] = None,
