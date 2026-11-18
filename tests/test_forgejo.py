@@ -285,7 +285,28 @@ A few things.
             self.service.pr_wait(number=7, interval=5)
         sleep.assert_called_once_with(5)
         self.assertEqual(out.getvalue(),
-                         "#7: review 9 (REQUEST_CHANGES) by bob at 2026-01-03T00:00:00+00:00\n")
+                         "#7: review 9 (REQUEST_CHANGES) by bob at 2026-01-03T00:00:00+00:00\n"
+                         "to wait for more: wait-pr 7 --since 2026-01-03T00:00:00+00:00\n")
+
+    @mock.patch("time.sleep")
+    def test_pr_wait_since_skips_older_feedback(self, sleep, check_output):
+        del check_output
+        approval = {"id": 9, "user": {"login": "bob"}, "state": "APPROVED",
+                    "submitted_at": "2026-01-03T00:00:00Z", "updated_at": "2026-01-03T00:00:00Z"}
+        comment = {"id": 11, "user": {"login": "bob"},
+                   "created_at": "2026-01-04T00:00:00Z", "updated_at": "2026-01-04T00:00:00Z"}
+        pr = {"state": "open", "created_at": "2026-01-01T00:00:00Z"}
+        self.send.side_effect = [
+            fake_response({"login": "alice"}),
+            fake_response(pr),
+            fake_response([]), fake_response([approval]),
+            fake_response(pr),
+            fake_response([comment]), fake_response([approval]),
+        ]
+        with mock.patch("sys.stdout", new_callable=io.StringIO) as out:
+            self.service.pr_wait(number=7, since="2026-01-03T00:00:00+00:00")
+        sleep.assert_called_once()
+        self.assertTrue(out.getvalue().startswith("#7: comment 11 by bob"))
 
     @mock.patch("time.sleep")
     def test_pr_wait_returns_when_merged(self, sleep, check_output):

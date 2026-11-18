@@ -677,29 +677,35 @@ class Forgejo(Service):
         return activity
 
     def pr_wait(self, remote: Optional[str] = None, number: Optional[int] = None,
-                interval: float = 30, **kwargs: Any) -> None:
+                interval: float = 30, since: Optional[str] = None, **kwargs: Any) -> None:
         """Block until a PR gets feedback newer than our own last activity on it.
 
         Feedback is a comment or submitted review by anyone but the token's
         user. Our last activity is our latest comment or review, or the PR's
-        creation, so feedback left before wait-pr started still counts. Also
-        returns when the PR is closed or merged."""
+        creation, so feedback left before wait-pr started still counts; since,
+        an ISO time, overrides that, e.g. to skip feedback that needed no reply.
+        Also returns when the PR is closed or merged."""
         del kwargs
         repo = self.repo_path(remote)
         number = self.pr_number(repo, number)
         me = self.get("/user")["login"]
         pr = self.get(f"/repos/{repo}/pulls/{number}")
-        since = max([datetime.fromisoformat(pr["created_at"])] +
-                    [at for at, author, _ in self.pr_activity(repo, number) if author == me])
+        if since:
+            since_time = datetime.fromisoformat(since)
+        else:
+            since_time = max(
+                [datetime.fromisoformat(pr["created_at"])] +
+                [at for at, author, _ in self.pr_activity(repo, number) if author == me])
         while True:
             if pr["state"] != "open":
                 print(f"#{number} is {'merged' if pr.get('merged') else pr['state']}")
                 return
             feedback = sorted(item for item in self.pr_activity(repo, number)
-                              if item[1] != me and item[0] > since)
+                              if item[1] != me and item[0] > since_time)
             if feedback:
                 for at, author, what in feedback:
                     print(f"#{number}: {what} by {author} at {at.isoformat()}")
+                print(f"to wait for more: wait-pr {number} --since {feedback[-1][0].isoformat()}")
                 return
             time.sleep(interval)
             pr = self.get(f"/repos/{repo}/pulls/{number}")
@@ -887,6 +893,9 @@ def main(argv: Optional[List[str]] = None, service: Optional[Type[Service]] = No
         parser_prwait.add_argument("-R", "--remote", help=pr_remote_help)
         parser_prwait.add_argument("-i", "--interval", type=float, default=30,
                                    help="seconds between checks (default: 30)")
+        parser_prwait.add_argument("-s", "--since", metavar="ISO_TIME",
+                                   help="only feedback after this time "
+                                   "(default: your last comment or review on the PR)")
         parser_prwait.set_defaults(func="pr_wait")
 
     if not argv:
