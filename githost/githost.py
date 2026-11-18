@@ -590,6 +590,63 @@ class Forgejo(Service):
         resp = self.req_send(req, print_json=False)
         print(resp.json()["html_url"])
 
+    def pr_number(self, repo: str, number: Optional[int]) -> int:
+        """Returns the given PR number, or that of the open PR for the current branch."""
+        if number:
+            return number
+        branch = git("rev-parse", "--abbrev-ref", "HEAD")
+        for pr in self.get_all(f"/repos/{repo}/pulls", {"state": "open"}):
+            if pr["head"]["ref"] == branch:
+                return int(pr["number"])
+        sys.exit(f"no open pull request for branch {branch}; pass the PR number")
+
+    def pr_show(self, remote: Optional[str] = None, number: Optional[int] = None,
+                **kwargs: Any) -> None:
+        """Print a pull request with its comments, reviews and inline review comments.
+
+        Defaults to the open PR for the current branch. Inline comments show
+        file:line, the end of the diff hunk they're on, and whether they're
+        resolved or on outdated code."""
+        del kwargs
+        repo = self.repo_path(remote)
+        number = self.pr_number(repo, number)
+        pr = self.get(f"/repos/{repo}/pulls/{number}")
+        pr_state = "merged" if pr.get("merged") else pr["state"]
+        print(f"#{number} {pr_state}: {pr['title']}\n{pr['html_url']}\n"
+              f"{pr['head']['ref']} -> {pr['base']['ref']}")
+        if pr.get("body"):
+            print(f"\n{pr['body']}")
+
+        for comment in self.get_all(f"/repos/{repo}/issues/{number}/comments"):
+            print(f"\n--- comment {comment['id']} by {comment['user']['login']}"
+                  f" at {comment['created_at']}\n{comment['body']}")
+
+        for review in self.get_all(f"/repos/{repo}/pulls/{number}/reviews"):
+            comments = []
+            if review.get("comments_count"):
+                comments = self.get(
+                    f"/repos/{repo}/pulls/{number}/reviews/{review['id']}/comments")
+            if not review.get("body") and not comments:
+                continue
+            stale = " (stale)" if review.get("stale") else ""
+            print(f"\n--- review {review['id']} by {review['user']['login']}, "
+                  f"{review['state']}{stale}, at {review['submitted_at']}")
+            if review.get("body"):
+                print(review["body"])
+            for comment in comments:
+                line = comment.get("position") or comment.get("original_position")
+                notes = []
+                if comment.get("resolver"):
+                    notes.append(f"resolved by {comment['resolver']['login']}")
+                if not comment.get("position"):
+                    notes.append("outdated")
+                note = f" ({', '.join(notes)})" if notes else ""
+                hunk = "\n".join(comment.get("diff_hunk", "").splitlines()[-4:])
+                print(f"\n  > comment {comment['id']} on {comment['path']}:{line}{note}")
+                if hunk:
+                    print("    " + hunk.replace("\n", "\n    "))
+                print("  " + comment["body"].replace("\n", "\n  "))
+
 SERVICES: Dict[str, Type[Service]] = {
     name: service
     for service in [Github, Bitbucket, Gitlab, Forgejo]
@@ -701,6 +758,14 @@ def main(argv: Optional[List[str]] = None, service: Optional[Type[Service]] = No
         parser_prcreate.add_argument("--title", help="default: edit the last commit message")
         parser_prcreate.add_argument("-d", "--description", help="pull request description")
         parser_prcreate.set_defaults(func="pr_create")
+
+    if supports("pr_show"):
+        parser_prshow = subparsers.add_parser(
+            "show-pr", help="show a pull request with its comments and reviews (forgejo)")
+        parser_prshow.add_argument("number", nargs="?", type=int,
+                                   help="default: the open PR for the current branch")
+        parser_prshow.add_argument("-R", "--remote", help=pr_remote_help)
+        parser_prshow.set_defaults(func="pr_show")
 
     if not argv:
         parser.print_help(sys.stderr)

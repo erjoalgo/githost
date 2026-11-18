@@ -151,3 +151,61 @@ class ForgejoPullRequestTest(unittest.TestCase):
         post, = self.sent()
         self.assertEqual(json.loads(post.body),
                          {"head": "b", "base": "main", "title": "T", "body": "D"})
+
+    def test_pr_show_defaults_to_current_branch_and_prints_feedback(self, check_output):
+        del check_output
+        user = {"login": "bob"}
+        self.send.side_effect = [
+            fake_response([{"number": 7, "head": {"ref": "feature"}}]),
+            fake_response({"title": "Add feature", "state": "open", "merged": False,
+                           "html_url": "http://x/pulls/7", "body": "Why.",
+                           "head": {"ref": "feature"}, "base": {"ref": "master"}}),
+            fake_response([{"id": 1, "user": user, "created_at": "t1", "body": "LGTM?"}]),
+            fake_response([
+                {"id": 2, "user": user, "state": "REQUEST_CHANGES", "stale": False,
+                 "submitted_at": "t2", "body": "A few things.", "comments_count": 2},
+                {"id": 3, "user": user, "state": "COMMENT", "stale": False,
+                 "submitted_at": "t3", "body": "", "comments_count": 0}]),
+            fake_response([
+                {"id": 10, "path": "a.py", "position": 12, "original_position": 0,
+                 "diff_hunk": "@@ -1 +1 @@\n-x\n+y", "body": "rename y", "resolver": None},
+                {"id": 11, "path": "b.py", "position": 0, "original_position": 4,
+                 "diff_hunk": "", "body": "old", "resolver": {"login": "alice"}}]),
+        ]
+        with mock.patch("sys.stdout", new_callable=io.StringIO) as out:
+            self.service.pr_show()
+        urls = [req.url for req in self.sent()]
+        self.assertEqual(urls, [
+            f"{API}/repos/alice/proj/pulls?state=open&limit=50",
+            f"{API}/repos/alice/proj/pulls/7",
+            f"{API}/repos/alice/proj/issues/7/comments?limit=50",
+            f"{API}/repos/alice/proj/pulls/7/reviews?limit=50",
+            f"{API}/repos/alice/proj/pulls/7/reviews/2/comments"])
+        self.assertEqual(out.getvalue(), """\
+#7 open: Add feature
+http://x/pulls/7
+feature -> master
+
+Why.
+
+--- comment 1 by bob at t1
+LGTM?
+
+--- review 2 by bob, REQUEST_CHANGES, at t2
+A few things.
+
+  > comment 10 on a.py:12
+    @@ -1 +1 @@
+    -x
+    +y
+  rename y
+
+  > comment 11 on b.py:4 (resolved by alice, outdated)
+  old
+""")
+
+    def test_pr_number_without_open_pr_exits(self, check_output):
+        del check_output
+        self.send.return_value = fake_response([])
+        with self.assertRaises(SystemExit):
+            self.service.pr_number("alice/proj", None)

@@ -96,3 +96,9 @@ description default to the last commit message), and list the repo's PRs:
 `gfj create-pr`
 
 `gfj ls-pr -s all`
+
+Show a pull request with all its feedback: comments, reviews, and inline
+review comments with their file, line and diff context (defaults to the PR
+for the current branch):
+
+`gfj show-pr [NUMBER]`
