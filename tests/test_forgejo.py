@@ -276,7 +276,6 @@ A few things.
         self.send.side_effect = [
             fake_response({"login": "alice"}),
             fake_response(pr),
-            fake_response([old, ours]), fake_response([pending]),  # baseline
             fake_response([old, ours]), fake_response([pending]),  # nothing new
             fake_response(pr),
             fake_response([old, ours]), fake_response([review, pending]),
@@ -299,7 +298,6 @@ A few things.
         self.send.side_effect = [
             fake_response({"login": "alice"}),
             fake_response(pr),
-            fake_response([]), fake_response([approval]),  # baseline
             fake_response([]), fake_response([approval]),
             fake_response(pr),
             fake_response([comment]), fake_response([approval]),
@@ -318,7 +316,6 @@ A few things.
         pr = {"state": "open", "created_at": "2026-01-02T00:00:00Z"}
         for since in ("none", None):
             self.send.side_effect = [fake_response({"login": "alice"}), fake_response(pr),
-                                     fake_response([old]), fake_response([]),
                                      fake_response([old]), fake_response([])]
             with mock.patch("sys.stdout", new_callable=io.StringIO) as out:
                 self.service.pr_wait(number=7, since=since)
@@ -339,7 +336,6 @@ A few things.
         self.send.side_effect = [
             fake_response({"login": "alice"}),
             fake_response({"state": "open", "created_at": "2026-01-01T00:00:00Z"}),
-            fake_response([]), fake_response([]),
             fake_response([]), fake_response([]),
             fake_response({"state": "closed", "merged": True}),
         ]

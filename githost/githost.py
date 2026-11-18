@@ -701,24 +701,26 @@ class Forgejo(Service):
         repo = self.repo_path(remote)
         number = self.pr_number(repo, number)
         me = self.get("/user")["login"]
-        pr = self.get(f"/repos/{repo}/pulls/{number}")
-        activity = self.pr_activity(repo, number)
-        if since == "none":
-            since_time = None
-        elif since:
-            times = [item.time for item in activity if item.event == since]
-            if not times:
-                sys.exit(f"no event {since} on PR #{number}: expected comment:ID or review:ID "
-                         "as shown by show-pr, or none")
-            since_time = times[0]
-        else:
-            since_time = max((item.time for item in activity if item.author == me),
-                             default=None)
+        since_time: Optional[datetime] = None
+        since_known = since == "none"
         while True:
+            pr = self.get(f"/repos/{repo}/pulls/{number}")
             if pr["state"] != "open":
                 print(f"#{number} is {'merged' if pr.get('merged') else pr['state']}")
                 return
-            feedback = sorted(item for item in self.pr_activity(repo, number)
+            activity = self.pr_activity(repo, number)
+            if not since_known:
+                if since:
+                    times = [item.time for item in activity if item.event == since]
+                    if not times:
+                        sys.exit(f"no event {since} on PR #{number}: expected comment:ID or "
+                                 "review:ID as shown by show-pr, or none")
+                    since_time = times[0]
+                else:
+                    since_time = max((item.time for item in activity if item.author == me),
+                                     default=None)
+                since_known = True
+            feedback = sorted(item for item in activity
                               if item.author != me
                               and (since_time is None or item.time > since_time))
             if feedback:
@@ -728,7 +730,6 @@ class Forgejo(Service):
                 print(f"to wait for more: wait-pr {number} --since {feedback[-1].event}")
                 return
             time.sleep(interval)
-            pr = self.get(f"/repos/{repo}/pulls/{number}")
 
     def pr_find_comment(self, repo: str, number: int, comment_id: int) -> Any:
         """Returns the PR's general or inline review comment with the given id.
