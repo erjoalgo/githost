@@ -19,7 +19,7 @@ import traceback
 import urllib.parse
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Tuple, Type, overload
 
 import requests
@@ -704,16 +704,19 @@ class Forgejo(Service):
         repo = self.repo_path(remote)
         number = self.pr_number(repo, number)
         me = self.get("/user")["login"]
+        # Earlier than any event: the cutoff when all feedback counts.
+        no_cutoff = datetime.min.replace(tzinfo=timezone.utc)
         since_time: Optional[datetime] = None
-        since_known = since == "none"
         while True:
             pr = self.get(f"/repos/{repo}/pulls/{number}")
             if pr["state"] != "open":
                 print(f"#{number} is {'merged' if pr.get('merged') else pr['state']}")
                 return
             activity = self.pr_activity(repo, number)
-            if not since_known:
-                if since:
+            if since_time is None:
+                if since == "none":
+                    since_time = no_cutoff
+                elif since:
                     times = [item.time for item in activity if item.event == since]
                     if not times:
                         sys.exit(f"no event {since} on PR #{number}: expected comment:ID or "
@@ -721,11 +724,9 @@ class Forgejo(Service):
                     since_time = times[0]
                 else:
                     since_time = max((item.time for item in activity if item.author == me),
-                                     default=None)
-                since_known = True
+                                     default=no_cutoff)
             feedback = sorted(item for item in activity
-                              if item.author != me
-                              and (since_time is None or item.time > since_time))
+                              if item.author != me and item.time > since_time)
             if feedback:
                 for item in feedback:
                     print(f"#{number}: {item.event}{item.note} by {item.author}"
