@@ -35,5 +35,31 @@ class AuthinfoTest(unittest.TestCase):
         self.assertIsNone(self.prompt_password("1"))
 
 
+class ReadAuthinfoTest(unittest.TestCase):
+    """Check which authinfo line is used when several match the host."""
+
+    def read(self, user):
+        """Returns (user, passwd) read from an authinfo with two logins for the host."""
+        tmpdir = tempfile.TemporaryDirectory()
+        self.addCleanup(tmpdir.cleanup)
+        authinfo = os.path.join(tmpdir.name, "authinfo")
+        with open(authinfo, "w") as fh:
+            fh.write("machine localhost login claude password claude-tok\n"
+                     "machine localhost login alice password alice-tok\n")
+        service = githost.Forgejo(githost.Auth(user=user, passwd=None, authinfo=authinfo))
+        with mock.patch("sys.stdout", new_callable=io.StringIO):
+            service.read_authinfo()
+        return service.auth.user, service.auth.passwd
+
+    def test_without_username_uses_first_line(self):
+        self.assertEqual(self.read(None), ("claude", "claude-tok"))
+
+    def test_username_selects_its_line(self):
+        self.assertEqual(self.read("alice"), ("alice", "alice-tok"))
+
+    def test_username_without_a_line_is_not_replaced(self):
+        self.assertEqual(self.read("bob"), ("bob", None))
+
+
 if __name__ == "__main__":
     unittest.main()

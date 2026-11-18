@@ -111,8 +111,9 @@ class Service:
         if authinfo and os.path.exists(authinfo):
             machine = self.api_host()
             # TODO(ealfonso) support changing token order
-            pat = re.compile("^machine {} login (.*) password (.*)"
-                             .format(re.escape(machine)))
+            login = re.escape(auth.user) if auth.user else ".*"
+            pat = re.compile("^machine {} login ({}) password (.*)"
+                             .format(re.escape(machine), login))
             try:
                 with open(authinfo, "r") as fh:
                     lines = fh.read().split("\n")
