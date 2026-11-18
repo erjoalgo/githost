@@ -82,6 +82,7 @@ REMOTES = {"remote": "origin\nforgejo\n",
            "remote get-url forgejo": "http://localhost:3123/alice/proj.git\n",
            "remote get-url origin": "git@github.com:alice/proj.git\n",
            "rev-parse --abbrev-ref HEAD": "feature\n",
+           "rev-parse HEAD": "abc123\n",
            "log -1 --format=%B feature": "Add feature\n\nBecause.\n"}
 
 
@@ -156,7 +157,7 @@ class ForgejoPullRequestTest(unittest.TestCase):
         del check_output
         user = {"login": "bob"}
         self.send.side_effect = [
-            fake_response([{"number": 7, "head": {"ref": "feature"}}]),
+            fake_response([{"number": 7, "head": {"ref": "feature", "sha": "old"}}]),
             fake_response({"title": "Add feature", "state": "open", "merged": False,
                            "html_url": "http://x/pulls/7", "body": "Why.",
                            "head": {"ref": "feature"}, "base": {"ref": "master"}}),
@@ -209,6 +210,33 @@ A few things.
         self.send.return_value = fake_response([])
         with self.assertRaises(SystemExit):
             self.service.pr_number("alice/proj", None)
+
+    def test_pr_number_matches_head_commit_on_detached_head(self, check_output):
+        del check_output
+        REMOTES["rev-parse --abbrev-ref HEAD"] = "HEAD\n"
+        self.addCleanup(REMOTES.__setitem__, "rev-parse --abbrev-ref HEAD", "feature\n")
+        self.send.return_value = fake_response([
+            {"number": 1, "head": {"ref": "other", "sha": "zzz"}},
+            {"number": 2, "head": {"ref": "feature", "sha": "abc123"}}])
+        self.assertEqual(self.service.pr_number("alice/proj", None), 2)
+
+    def test_pr_number_ignores_same_branch_name_from_a_fork(self, check_output):
+        del check_output
+        self.send.return_value = fake_response([
+            {"number": 1, "head": {"ref": "feature", "sha": "x",
+                                   "repo": {"full_name": "mallory/proj"}}},
+            {"number": 2, "head": {"ref": "feature", "sha": "y",
+                                   "repo": {"full_name": "alice/proj"}}}])
+        self.assertEqual(self.service.pr_number("alice/proj", None), 2)
+
+    def test_pr_number_ambiguous_exits(self, check_output):
+        del check_output
+        self.send.return_value = fake_response([
+            {"number": 1, "head": {"ref": "feature", "sha": "x"}},
+            {"number": 2, "head": {"ref": "other", "sha": "abc123"}}])
+        with self.assertRaises(SystemExit) as ctx:
+            self.service.pr_number("alice/proj", None)
+        self.assertIn("#1, #2", ctx.exception.code)
 
     def test_pr_comment_reply_quotes_inline_comment(self, check_output):
         del check_output

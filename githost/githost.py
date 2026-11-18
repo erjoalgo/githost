@@ -591,14 +591,26 @@ class Forgejo(Service):
         print(resp.json()["html_url"])
 
     def pr_number(self, repo: str, number: Optional[int]) -> int:
-        """Returns the given PR number, or that of the open PR for the current branch."""
+        """Returns the given PR number, or that of the open PR for the current checkout.
+
+        An open PR matches if its head branch, in this repo, is the current
+        branch, or its head commit is the current commit (e.g. on a detached
+        HEAD). More than one match is an error rather than a guess."""
         if number:
             return number
         branch = git("rev-parse", "--abbrev-ref", "HEAD")
-        for pr in self.get_all(f"/repos/{repo}/pulls", {"state": "open"}):
-            if pr["head"]["ref"] == branch:
-                return int(pr["number"])
-        sys.exit(f"no open pull request for branch {branch}; pass the PR number")
+        commit = git("rev-parse", "HEAD")
+        matches = [pr for pr in self.get_all(f"/repos/{repo}/pulls", {"state": "open"})
+                   if pr["head"]["sha"] == commit
+                   or (pr["head"]["ref"] == branch
+                       and (pr["head"].get("repo") or {}).get("full_name", repo) == repo)]
+        if len(matches) == 1:
+            return int(matches[0]["number"])
+        if matches:
+            numbers = ", ".join(f"#{pr['number']}" for pr in matches)
+            sys.exit(f"several open pull requests match {branch} at {commit[:10]}: "
+                     f"{numbers}; pass the PR number")
+        sys.exit(f"no open pull request for {branch} at {commit[:10]}; pass the PR number")
 
     def pr_show(self, remote: Optional[str] = None, number: Optional[int] = None,
                 **kwargs: Any) -> None:
