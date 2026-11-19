@@ -564,14 +564,13 @@ class Forgejo(Service):
             self.req_send(req, print_json=False)
             print(f"{user}: {permission}")
 
-    def branch_protect(self, branch: Optional[str] = None, remote: Optional[str] = None,
+    def branch_protect(self, branch: str, remote: Optional[str] = None,
                        **kwargs: Any) -> None:
         """Protect a branch so only you can push to it or merge.
 
         Safe to re-run: an existing rule for the branch is updated."""
         del kwargs
         repo = self.repo_path(remote)
-        branch = branch or self.get(f"/repos/{repo}")["default_branch"]
         me = self.get("/user")["login"]
         data: Dict[str, Any] = {"enable_push": True,
                                 "enable_push_whitelist": True,
@@ -904,7 +903,7 @@ def main(argv: Optional[List[str]] = None, service: Optional[Type[Service]] = No
     if supports("branch_protect"):
         parser_protect = subparsers.add_parser(
             "protect-branch", help="let only you push to or merge into a branch (forgejo)")
-        parser_protect.add_argument("branch", nargs="?", help="default: repo's default branch")
+        parser_protect.add_argument("branch")
         parser_protect.add_argument("-R", "--remote", help=pr_remote_help)
         parser_protect.set_defaults(func="branch_protect")
 

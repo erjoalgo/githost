@@ -156,16 +156,15 @@ class ForgejoPullRequestTest(unittest.TestCase):
         self.assertEqual(bob.url, f"{API}/repos/alice/proj/collaborators/bob")
         self.assertEqual(out.getvalue(), "claude: read\nbob: read\n")
 
-    def test_branch_protect_creates_rule_for_default_branch(self, check_output):
+    def test_branch_protect_creates_rule(self, check_output):
         del check_output
-        self.send.side_effect = [fake_response({"default_branch": "master"}),
-                                 fake_response({"login": "alice"}),
+        self.send.side_effect = [fake_response({"login": "alice"}),
                                  fake_response({"message": "not found"}, status=404),
                                  fake_response({})]
         with mock.patch("sys.stdout", new_callable=io.StringIO) as out:
-            self.service.branch_protect()
-        repo, user, get, post = self.sent()
-        self.assertEqual((repo.url, user.url), (f"{API}/repos/alice/proj", f"{API}/user"))
+            self.service.branch_protect("master")
+        user, get, post = self.sent()
+        self.assertEqual(user.url, f"{API}/user")
         self.assertEqual(get.url, f"{API}/repos/alice/proj/branch_protections/master")
         self.assertEqual((post.method, post.url),
                          ("POST", f"{API}/repos/alice/proj/branch_protections"))
