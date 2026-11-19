@@ -99,6 +99,11 @@ the repo's owner, protecting a branch after it's pushed:
 
 `gfj -u alice protect-branch master`
 
+`protect-branch` sets a Forgejo branch protection rule on that branch with push
+and merge whitelists holding only you: collaborators can still push other
+branches and open pull requests into it, but only you can push to it or merge
+those pull requests.
+
 Open a pull request for the current, already-pushed branch (the title and
 description default to the last commit message), and list the repo's PRs:
 
