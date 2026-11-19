@@ -39,24 +39,30 @@ class ServiceCommandTest(unittest.TestCase):
                 entry()
             list_repos.assert_called_once()
 
-    def username_used(self, argv, env):
-        """Returns the username gfj ends up with for this argv and environment."""
+    def username_used(self, argv, env, service=githost.Forgejo):
+        """Returns the username a service ends up with for this argv and environment."""
         with mock.patch.dict(os.environ, env, clear=False), \
-             mock.patch.object(githost.Forgejo, "list_repos", autospec=True) as list_repos:
-            if "GITHOST_USER" not in env:
-                os.environ.pop("GITHOST_USER", None)
-            githost.main(argv, service=githost.Forgejo)
+             mock.patch.object(service, "list_repos", autospec=True) as list_repos:
+            for name in ("GITHOST_FORGEJO_USER", "GITHOST_GITHUB_USER"):
+                if name not in env:
+                    os.environ.pop(name, None)
+            githost.main(argv, service=service)
         return list_repos.call_args[0][0].auth.user
 
-    def test_username_defaults_to_githost_user(self):
-        self.assertEqual(self.username_used(["ls-repo"], {"GITHOST_USER": "bob"}), "bob")
+    def test_username_defaults_to_service_env(self):
+        self.assertEqual(self.username_used(["ls-repo"], {"GITHOST_FORGEJO_USER": "bob"}),
+                         "bob")
 
-    def test_username_flag_overrides_githost_user(self):
+    def test_username_flag_overrides_service_env(self):
         self.assertEqual(self.username_used(["-u", "alice", "ls-repo"],
-                                            {"GITHOST_USER": "bob"}), "alice")
+                                            {"GITHOST_FORGEJO_USER": "bob"}), "alice")
 
-    def test_username_unset_without_githost_user(self):
+    def test_username_unset_without_service_env(self):
         self.assertIsNone(self.username_used(["ls-repo"], {}))
+
+    def test_other_service_env_is_ignored(self):
+        self.assertIsNone(self.username_used(["ls-repo"], {"GITHOST_FORGEJO_USER": "bob"},
+                                             service=githost.Github))
 
     def test_missing_subcommand_prints_commands(self):
         for entry in [lambda: githost.main(["gitlab"]), githost.main_gitlab]:
