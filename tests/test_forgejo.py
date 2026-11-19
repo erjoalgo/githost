@@ -190,6 +190,47 @@ class ForgejoPullRequestTest(unittest.TestCase):
         self.assertEqual((patch.method, patch.url), ("PATCH", rule))
         self.assertNotIn("rule_name", json.loads(patch.body))
 
+    @mock.patch("subprocess.run")
+    def test_repo_publish_existing_remote(self, run, check_output):
+        del check_output
+        run.return_value = mock.Mock(returncode=0)
+        self.send.side_effect = [fake_response(None, status=204),
+                                 fake_response({"login": "alice"}),
+                                 fake_response({"message": "not found"}, status=404),
+                                 fake_response({})]
+        with mock.patch("sys.stdout", new_callable=io.StringIO) as out:
+            self.service.repo_publish("proj", collaborator=["claude"])
+        put, user, get, post = self.sent()
+        self.assertEqual(put.url, f"{API}/repos/alice/proj/collaborators/claude")
+        self.assertEqual(json.loads(post.body)["rule_name"], "main")
+        verify, push = run.call_args_list
+        self.assertEqual(verify[0][0][-1], "refs/heads/main")
+        self.assertEqual(push[0][0][-3:], ["push", "forgejo", "main"])
+        self.assertIn("credential.helper=", push[0][0])
+        self.assertEqual(push[1]["env"]["GFJ_TOKEN"], "fj-token")
+        self.assertIn("not creating the repo", out.getvalue())
+
+    @mock.patch("subprocess.run")
+    def test_repo_publish_falls_back_to_master(self, run, check_output):
+        del check_output
+        run.side_effect = [mock.Mock(returncode=1), mock.Mock(returncode=0),
+                           mock.Mock(returncode=0)]
+        self.send.side_effect = [fake_response({"login": "alice"}),
+                                 fake_response({"rule_name": "master"}),
+                                 fake_response({})]
+        with mock.patch("sys.stdout", new_callable=io.StringIO):
+            self.service.repo_publish("proj")
+        self.assertEqual(run.call_args_list[2][0][0][-1], "master")
+        user, get, patch = self.sent()
+        self.assertEqual(patch.method, "PATCH")
+
+    @mock.patch("subprocess.run", return_value=mock.Mock(returncode=1))
+    def test_repo_publish_without_branch_exits_before_any_request(self, run, check_output):
+        del run, check_output
+        with self.assertRaises(SystemExit):
+            self.service.repo_publish("proj", branch="nope")
+        self.assertEqual(self.sent(), [])
+
     def test_pr_create_explicit_args_skip_lookups(self, check_output):
         del check_output
         self.send.return_value = fake_response({"html_url": "http://x/pulls/5"})

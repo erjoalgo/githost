@@ -64,6 +64,21 @@ def git(*args: str) -> str:
     """Run a git command and return its stripped output."""
     return subprocess.check_output(["git", *args], text=True).strip()
 
+def local_branch_exists(name: str) -> bool:
+    """Whether the current git repo has a local branch with this name."""
+    return subprocess.run(["git", "rev-parse", "-q", "--verify", f"refs/heads/{name}"],
+                          stdout=subprocess.DEVNULL).returncode == 0
+
+def local_branch_or_default(name: Optional[str]) -> str:
+    """Returns the local branch name, or main, else master, when it's None.
+
+    Exits if that branch doesn't exist locally."""
+    candidates = [name] if name else ["main", "master"]
+    branch = next((c for c in candidates if local_branch_exists(c)), None)
+    if not branch:
+        sys.exit(f"no local branch {' or '.join(candidates)}; pass --branch")
+    return branch
+
 def parse_remote_url(url: str) -> Tuple[Optional[str], str]:
     """Extract the host and project path, e.g. group/sub/proj, from a git remote url."""
     if "://" in url:
@@ -202,6 +217,17 @@ class Service:
         """Register the current githost service locally as a git remote."""
         cmd = ["git", "remote", "add", name, url]
         subprocess.run(cmd, check = True)
+
+    def git_push_as_user(self, remote: str, branch: str) -> None:
+        """Push a branch authenticated as this user and token.
+
+        Bypasses git's configured credential helper, which may hold another
+        account's token (e.g. a restricted agent's); the token is passed
+        through the environment, not argv."""
+        helper = f"!f() {{ echo username={self.user()}; echo password=$GFJ_TOKEN; }}; f"
+        subprocess.run(["git", "-c", "credential.helper=", "-c", f"credential.helper={helper}",
+                        "push", remote, branch],
+                       env=dict(os.environ, GFJ_TOKEN=self.password()), check=True)
 
     def repo_name(self) -> str:
         """Returns the repository name."""
@@ -589,6 +615,24 @@ class Forgejo(Service):
         self.req_send(req, print_json=False)
         print(f"{branch}: only {me} can push or merge")
 
+    def repo_publish(self, repo_name: str, description: Optional[str] = None,
+                     collaborator: Optional[List[str]] = None, branch: Optional[str] = None,
+                     **kwargs: Any) -> None:
+        """Create the repo, add collaborators, push a branch as you, and protect it.
+
+        Safe to re-run: an existing forgejo remote skips the create step, and
+        the other steps are idempotent."""
+        del kwargs
+        branch = local_branch_or_default(branch)
+        if self.name in git("remote").split():
+            print(f"{self.name} remote exists, not creating the repo")
+        else:
+            self.repo_create(repo_name, description)
+        if collaborator:
+            self.collaborator_add(collaborator)
+        self.git_push_as_user(self.name, branch)
+        self.branch_protect(branch)
+
     def repo_path(self, remote: Optional[str] = None) -> str:
         """Returns owner/repo of the current repo on forgejo.
 
@@ -907,6 +951,18 @@ def main(argv: Optional[List[str]] = None, service: Optional[Type[Service]] = No
         parser_protect.add_argument("branch")
         parser_protect.add_argument("-R", "--remote", help=pr_remote_help)
         parser_protect.set_defaults(func="branch_protect")
+
+    if supports("repo_publish"):
+        parser_publish = subparsers.add_parser(
+            "publish-repo", help="create the current repo, add collaborators, push a branch "
+            "and let only you push to or merge into it (forgejo)")
+        parser_publish.add_argument("-r", "--repo-name", default=os.path.basename(os.getcwd()),
+                                    help="default: the current directory's name")
+        parser_publish.add_argument("-d", "--description", help="repo description")
+        parser_publish.add_argument("-c", "--collaborator", action="append",
+                                    help="user to add with write access (repeatable)")
+        parser_publish.add_argument("--branch", help="default: main, else master")
+        parser_publish.set_defaults(func="repo_publish")
 
     if supports("mr_list"):
         parser_mrlist = subparsers.add_parser(

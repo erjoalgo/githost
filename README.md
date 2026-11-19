@@ -104,6 +104,13 @@ and merge allowlists holding only you: collaborators can still push other
 branches and open pull requests into it, but only you can push to it or merge
 those pull requests.
 
+`publish-repo` does all of it for the current directory's repo: creates it
+(skipped if the `forgejo` remote exists), adds the `-c` collaborators, pushes
+`main` (else `master`, or `--branch`) with your token, and protects it. It's
+safe to re-run:
+
+`gfj -u alice publish-repo -c claude -d "description"`
+
 Open a pull request for the current, already-pushed branch (the title and
 description default to the last commit message), and list the repo's PRs:
 
