@@ -607,8 +607,8 @@ class Forgejo(Service):
         if not branch:
             sys.exit(f"no local branch {' or '.join(candidates)} to publish; pass --branch")
 
-        if "forgejo" in git("remote").split():
-            print("forgejo remote exists, not creating the repo")
+        if self.name in git("remote").split():
+            print(f"{self.name} remote exists, not creating the repo")
         else:
             self.repo_create(repo_name, description)
         if collaborator:
@@ -617,7 +617,7 @@ class Forgejo(Service):
         # another account's (e.g. a restricted agent's).
         helper = f"!f() {{ echo username={self.user()}; echo password=$GFJ_TOKEN; }}; f"
         subprocess.run(["git", "-c", "credential.helper=", "-c", f"credential.helper={helper}",
-                        "push", "forgejo", branch],
+                        "push", self.name, branch],
                        env=dict(os.environ, GFJ_TOKEN=self.password()), check=True)
         self.branch_protect(branch)
 
