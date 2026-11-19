@@ -143,19 +143,28 @@ class ForgejoPullRequestTest(unittest.TestCase):
                           "title": "Add feature", "body": "Because."})
         self.assertEqual(out.getvalue(), "http://x/pulls/4\n")
 
-    def test_repo_setup_adds_collaborator_and_creates_rule(self, check_output):
+    def test_collaborator_add(self, check_output):
         del check_output
         self.send.side_effect = [fake_response(None, status=204),
-                                 fake_response({"default_branch": "master"}),
+                                 fake_response(None, status=204)]
+        with mock.patch("sys.stdout", new_callable=io.StringIO) as out:
+            self.service.collaborator_add(["claude", "bob"], permission="read")
+        claude, bob = self.sent()
+        self.assertEqual((claude.method, claude.url),
+                         ("PUT", f"{API}/repos/alice/proj/collaborators/claude"))
+        self.assertEqual(json.loads(claude.body), {"permission": "read"})
+        self.assertEqual(bob.url, f"{API}/repos/alice/proj/collaborators/bob")
+        self.assertEqual(out.getvalue(), "claude: read\nbob: read\n")
+
+    def test_branch_protect_creates_rule_for_default_branch(self, check_output):
+        del check_output
+        self.send.side_effect = [fake_response({"default_branch": "master"}),
                                  fake_response({"login": "alice"}),
                                  fake_response({"message": "not found"}, status=404),
                                  fake_response({})]
         with mock.patch("sys.stdout", new_callable=io.StringIO) as out:
-            self.service.repo_setup(collaborator=["claude"])
-        put, repo, user, get, post = self.sent()
-        self.assertEqual((put.method, put.url),
-                         ("PUT", f"{API}/repos/alice/proj/collaborators/claude"))
-        self.assertEqual(json.loads(put.body), {"permission": "write"})
+            self.service.branch_protect()
+        repo, user, get, post = self.sent()
         self.assertEqual((repo.url, user.url), (f"{API}/repos/alice/proj", f"{API}/user"))
         self.assertEqual(get.url, f"{API}/repos/alice/proj/branch_protections/master")
         self.assertEqual((post.method, post.url),
@@ -167,16 +176,15 @@ class ForgejoPullRequestTest(unittest.TestCase):
                           "push_whitelist_usernames": ["alice"],
                           "enable_merge_whitelist": True,
                           "merge_whitelist_usernames": ["alice"]})
-        self.assertEqual(out.getvalue(),
-                         "claude: write\nmaster: only alice can push or merge\n")
+        self.assertEqual(out.getvalue(), "master: only alice can push or merge\n")
 
-    def test_repo_setup_updates_existing_rule(self, check_output):
+    def test_branch_protect_updates_existing_rule(self, check_output):
         del check_output
         self.send.side_effect = [fake_response({"login": "alice"}),
                                  fake_response({"rule_name": "release/1"}),
                                  fake_response({})]
         with mock.patch("sys.stdout", new_callable=io.StringIO):
-            self.service.repo_setup(branch="release/1")
+            self.service.branch_protect("release/1")
         user, get, patch = self.sent()
         rule = f"{API}/repos/alice/proj/branch_protections/release%2F1"
         self.assertEqual(get.url, rule)

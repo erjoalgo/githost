@@ -553,20 +553,24 @@ class Forgejo(Service):
         self.git_add_remote("forgejo", repo["clone_url"])
         print(repo["html_url"])
 
-    def repo_setup(self, remote: Optional[str] = None,
-                   collaborator: Optional[List[str]] = None, permission: str = "write",
-                   branch: Optional[str] = None, **kwargs: Any) -> None:
-        """Add collaborators and protect a branch so only you can push to it or merge.
-
-        Safe to re-run: collaborators are set, and an existing rule is updated."""
+    def collaborator_add(self, users: List[str], remote: Optional[str] = None,
+                         permission: str = "write", **kwargs: Any) -> None:
+        """Add users as collaborators, or change their permission if they already are."""
         del kwargs
         repo = self.repo_path(remote)
-        for user in collaborator or []:
+        for user in users:
             req = requests.Request("PUT", f"/repos/{repo}/collaborators/{user}",
                                    json={"permission": permission})
             self.req_send(req, print_json=False)
             print(f"{user}: {permission}")
 
+    def branch_protect(self, branch: Optional[str] = None, remote: Optional[str] = None,
+                       **kwargs: Any) -> None:
+        """Protect a branch so only you can push to it or merge.
+
+        Safe to re-run: an existing rule for the branch is updated."""
+        del kwargs
+        repo = self.repo_path(remote)
         branch = branch or self.get(f"/repos/{repo}")["default_branch"]
         me = self.get("/user")["login"]
         data: Dict[str, Any] = {"enable_push": True,
@@ -887,18 +891,22 @@ def main(argv: Optional[List[str]] = None, service: Optional[Type[Service]] = No
     remote_help = "git remote of the project (default: gitlab, else origin)"
     pr_remote_help = "git remote of the repo (default: forgejo, else origin)"
 
-    if supports("repo_setup"):
-        parser_reposetup = subparsers.add_parser(
-            "setup-repo", help="add collaborators and protect a branch so only you can "
-            "push to it or merge (forgejo)")
-        parser_reposetup.add_argument("-R", "--remote", help=pr_remote_help)
-        parser_reposetup.add_argument("-c", "--collaborator", action="append",
-                                      help="user to add (repeatable)")
-        parser_reposetup.add_argument("-p", "--permission", default="write",
+    if supports("collaborator_add"):
+        parser_collabadd = subparsers.add_parser(
+            "add-collaborator", help="add users to the current repo (forgejo)")
+        parser_collabadd.add_argument("users", nargs="+", metavar="USER")
+        parser_collabadd.add_argument("-R", "--remote", help=pr_remote_help)
+        parser_collabadd.add_argument("-p", "--permission", default="write",
                                       choices=["read", "write", "admin"],
-                                      help="collaborators' permission (default: write)")
-        parser_reposetup.add_argument("--branch", help="default: repo's default branch")
-        parser_reposetup.set_defaults(func="repo_setup")
+                                      help="default: write")
+        parser_collabadd.set_defaults(func="collaborator_add")
+
+    if supports("branch_protect"):
+        parser_protect = subparsers.add_parser(
+            "protect-branch", help="let only you push to or merge into a branch (forgejo)")
+        parser_protect.add_argument("branch", nargs="?", help="default: repo's default branch")
+        parser_protect.add_argument("-R", "--remote", help=pr_remote_help)
+        parser_protect.set_defaults(func="branch_protect")
 
     if supports("mr_list"):
         parser_mrlist = subparsers.add_parser(
