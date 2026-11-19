@@ -218,6 +218,17 @@ class Service:
         cmd = ["git", "remote", "add", name, url]
         subprocess.run(cmd, check = True)
 
+    def git_push_as_user(self, remote: str, branch: str) -> None:
+        """Push a branch authenticated as this user and token.
+
+        Bypasses git's configured credential helper, which may hold another
+        account's token (e.g. a restricted agent's); the token is passed
+        through the environment, not argv."""
+        helper = f"!f() {{ echo username={self.user()}; echo password=$GFJ_TOKEN; }}; f"
+        subprocess.run(["git", "-c", "credential.helper=", "-c", f"credential.helper={helper}",
+                        "push", remote, branch],
+                       env=dict(os.environ, GFJ_TOKEN=self.password()), check=True)
+
     def repo_name(self) -> str:
         """Returns the repository name."""
         cand = os.path.basename(os.getcwd())
@@ -619,12 +630,7 @@ class Forgejo(Service):
             self.repo_create(repo_name, description)
         if collaborator:
             self.collaborator_add(collaborator)
-        # Push with this token, not git's own credential helper, which may hold
-        # another account's (e.g. a restricted agent's).
-        helper = f"!f() {{ echo username={self.user()}; echo password=$GFJ_TOKEN; }}; f"
-        subprocess.run(["git", "-c", "credential.helper=", "-c", f"credential.helper={helper}",
-                        "push", self.name, branch],
-                       env=dict(os.environ, GFJ_TOKEN=self.password()), check=True)
+        self.git_push_as_user(self.name, branch)
         self.branch_protect(branch)
 
     def repo_path(self, remote: Optional[str] = None) -> str:
