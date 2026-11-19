@@ -97,10 +97,10 @@ the repo's owner, protecting a branch after it's pushed:
 
 `gfj -u alice add-collaborator claude`
 
-`gfj -u alice protect-branch master`
+`gfj -u alice protect-branch main`
 
 `protect-branch` sets a Forgejo branch protection rule on that branch with push
-and merge whitelists holding only you: collaborators can still push other
+and merge allowlists holding only you: collaborators can still push other
 branches and open pull requests into it, but only you can push to it or merge
 those pull requests.
 
