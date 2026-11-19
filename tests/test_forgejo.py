@@ -143,6 +143,46 @@ class ForgejoPullRequestTest(unittest.TestCase):
                           "title": "Add feature", "body": "Because."})
         self.assertEqual(out.getvalue(), "http://x/pulls/4\n")
 
+    def test_repo_setup_adds_collaborator_and_creates_rule(self, check_output):
+        del check_output
+        self.send.side_effect = [fake_response(None, status=204),
+                                 fake_response({"default_branch": "master"}),
+                                 fake_response({"login": "alice"}),
+                                 fake_response({"message": "not found"}, status=404),
+                                 fake_response({})]
+        with mock.patch("sys.stdout", new_callable=io.StringIO) as out:
+            self.service.repo_setup(collaborator=["claude"])
+        put, repo, user, get, post = self.sent()
+        self.assertEqual((put.method, put.url),
+                         ("PUT", f"{API}/repos/alice/proj/collaborators/claude"))
+        self.assertEqual(json.loads(put.body), {"permission": "write"})
+        self.assertEqual((repo.url, user.url), (f"{API}/repos/alice/proj", f"{API}/user"))
+        self.assertEqual(get.url, f"{API}/repos/alice/proj/branch_protections/master")
+        self.assertEqual((post.method, post.url),
+                         ("POST", f"{API}/repos/alice/proj/branch_protections"))
+        self.assertEqual(json.loads(post.body),
+                         {"rule_name": "master",
+                          "enable_push": True,
+                          "enable_push_whitelist": True,
+                          "push_whitelist_usernames": ["alice"],
+                          "enable_merge_whitelist": True,
+                          "merge_whitelist_usernames": ["alice"]})
+        self.assertEqual(out.getvalue(),
+                         "claude: write\nmaster: only alice can push or merge\n")
+
+    def test_repo_setup_updates_existing_rule(self, check_output):
+        del check_output
+        self.send.side_effect = [fake_response({"login": "alice"}),
+                                 fake_response({"rule_name": "release/1"}),
+                                 fake_response({})]
+        with mock.patch("sys.stdout", new_callable=io.StringIO):
+            self.service.repo_setup(branch="release/1")
+        user, get, patch = self.sent()
+        rule = f"{API}/repos/alice/proj/branch_protections/release%2F1"
+        self.assertEqual(get.url, rule)
+        self.assertEqual((patch.method, patch.url), ("PATCH", rule))
+        self.assertNotIn("rule_name", json.loads(patch.body))
+
     def test_pr_create_explicit_args_skip_lookups(self, check_output):
         del check_output
         self.send.return_value = fake_response({"html_url": "http://x/pulls/5"})

@@ -90,6 +90,13 @@ Create a repo for the current directory and add it as the `forgejo` remote:
 
 `gfj create-repo -d "description"`
 
+Add collaborators to the current directory's repo and protect a branch (default:
+the repo's default branch) so only you can push to it or merge. It works on new
+and existing repos and is safe to re-run. Run it as the repo's owner, after the
+branch is pushed:
+
+`gfj -u alice setup-repo -c claude`
+
 Open a pull request for the current, already-pushed branch (the title and
 description default to the last commit message), and list the repo's PRs:
 

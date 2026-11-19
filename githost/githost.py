@@ -553,6 +553,38 @@ class Forgejo(Service):
         self.git_add_remote("forgejo", repo["clone_url"])
         print(repo["html_url"])
 
+    def repo_setup(self, remote: Optional[str] = None,
+                   collaborator: Optional[List[str]] = None, permission: str = "write",
+                   branch: Optional[str] = None, **kwargs: Any) -> None:
+        """Add collaborators and protect a branch so only you can push to it or merge.
+
+        Safe to re-run: collaborators are set, and an existing rule is updated."""
+        del kwargs
+        repo = self.repo_path(remote)
+        for user in collaborator or []:
+            req = requests.Request("PUT", f"/repos/{repo}/collaborators/{user}",
+                                   json={"permission": permission})
+            self.req_send(req, print_json=False)
+            print(f"{user}: {permission}")
+
+        branch = branch or self.get(f"/repos/{repo}")["default_branch"]
+        me = self.get("/user")["login"]
+        data: Dict[str, Any] = {"enable_push": True,
+                                "enable_push_whitelist": True,
+                                "push_whitelist_usernames": [me],
+                                "enable_merge_whitelist": True,
+                                "merge_whitelist_usernames": [me]}
+        rule_url = f"/repos/{repo}/branch_protections"
+        quoted = urllib.parse.quote(branch, safe="")
+        existing = self.req_send(requests.Request("GET", f"{rule_url}/{quoted}"),
+                                 print_json=False, missing_ok=True)
+        if existing:
+            req = requests.Request("PATCH", f"{rule_url}/{quoted}", json=data)
+        else:
+            req = requests.Request("POST", rule_url, json=dict(data, rule_name=branch))
+        self.req_send(req, print_json=False)
+        print(f"{branch}: only {me} can push or merge")
+
     def repo_path(self, remote: Optional[str] = None) -> str:
         """Returns owner/repo of the current repo on forgejo.
 
@@ -854,6 +886,19 @@ def main(argv: Optional[List[str]] = None, service: Optional[Type[Service]] = No
 
     remote_help = "git remote of the project (default: gitlab, else origin)"
     pr_remote_help = "git remote of the repo (default: forgejo, else origin)"
+
+    if supports("repo_setup"):
+        parser_reposetup = subparsers.add_parser(
+            "setup-repo", help="add collaborators and protect a branch so only you can "
+            "push to it or merge (forgejo)")
+        parser_reposetup.add_argument("-R", "--remote", help=pr_remote_help)
+        parser_reposetup.add_argument("-c", "--collaborator", action="append",
+                                      help="user to add (repeatable)")
+        parser_reposetup.add_argument("-p", "--permission", default="write",
+                                      choices=["read", "write", "admin"],
+                                      help="collaborators' permission (default: write)")
+        parser_reposetup.add_argument("--branch", help="default: repo's default branch")
+        parser_reposetup.set_defaults(func="repo_setup")
 
     if supports("mr_list"):
         parser_mrlist = subparsers.add_parser(
