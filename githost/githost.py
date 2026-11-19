@@ -554,6 +554,41 @@ class Forgejo(Service):
         self.git_add_remote("forgejo", repo["clone_url"])
         print(repo["html_url"])
 
+    def collaborator_add(self, users: List[str], remote: Optional[str] = None,
+                         permission: str = "write", **kwargs: Any) -> None:
+        """Add users as collaborators, or change their permission if they already are."""
+        del kwargs
+        repo = self.repo_path(remote)
+        for user in users:
+            req = requests.Request("PUT", f"/repos/{repo}/collaborators/{user}",
+                                   json={"permission": permission})
+            self.req_send(req, print_json=False)
+            print(f"{user}: {permission}")
+
+    def branch_protect(self, branch: str, remote: Optional[str] = None,
+                       **kwargs: Any) -> None:
+        """Protect a branch so only you can push to it or merge.
+
+        Safe to re-run: an existing rule for the branch is updated."""
+        del kwargs
+        repo = self.repo_path(remote)
+        me = self.get("/user")["login"]
+        data: Dict[str, Any] = {"enable_push": True,
+                                "enable_push_whitelist": True,
+                                "push_whitelist_usernames": [me],
+                                "enable_merge_whitelist": True,
+                                "merge_whitelist_usernames": [me]}
+        rule_url = f"/repos/{repo}/branch_protections"
+        quoted = urllib.parse.quote(branch, safe="")
+        existing = self.req_send(requests.Request("GET", f"{rule_url}/{quoted}"),
+                                 print_json=False, missing_ok=True)
+        if existing:
+            req = requests.Request("PATCH", f"{rule_url}/{quoted}", json=data)
+        else:
+            req = requests.Request("POST", rule_url, json=dict(data, rule_name=branch))
+        self.req_send(req, print_json=False)
+        print(f"{branch}: only {me} can push or merge")
+
     def repo_path(self, remote: Optional[str] = None) -> str:
         """Returns owner/repo of the current repo on forgejo.
 
@@ -855,6 +890,23 @@ def main(argv: Optional[List[str]] = None, service: Optional[Type[Service]] = No
 
     remote_help = "git remote of the project (default: gitlab, else origin)"
     pr_remote_help = "git remote of the repo (default: forgejo, else origin)"
+
+    if supports("collaborator_add"):
+        parser_collabadd = subparsers.add_parser(
+            "add-collaborator", help="add users to the current repo (forgejo)")
+        parser_collabadd.add_argument("users", nargs="+", metavar="USER")
+        parser_collabadd.add_argument("-R", "--remote", help=pr_remote_help)
+        parser_collabadd.add_argument("-p", "--permission", default="write",
+                                      choices=["read", "write", "admin"],
+                                      help="default: write")
+        parser_collabadd.set_defaults(func="collaborator_add")
+
+    if supports("branch_protect"):
+        parser_protect = subparsers.add_parser(
+            "protect-branch", help="let only you push to or merge into a branch (forgejo)")
+        parser_protect.add_argument("branch")
+        parser_protect.add_argument("-R", "--remote", help=pr_remote_help)
+        parser_protect.set_defaults(func="branch_protect")
 
     if supports("mr_list"):
         parser_mrlist = subparsers.add_parser(
