@@ -69,6 +69,16 @@ def local_branch_exists(name: str) -> bool:
     return subprocess.run(["git", "rev-parse", "-q", "--verify", f"refs/heads/{name}"],
                           stdout=subprocess.DEVNULL).returncode == 0
 
+def local_branch_or_default(name: Optional[str]) -> str:
+    """Returns the local branch name, or main, else master, when it's None.
+
+    Exits if that branch doesn't exist locally."""
+    candidates = [name] if name else ["main", "master"]
+    branch = next((c for c in candidates if local_branch_exists(c)), None)
+    if not branch:
+        sys.exit(f"no local branch {' or '.join(candidates)}; pass --branch")
+    return branch
+
 def parse_remote_url(url: str) -> Tuple[Optional[str], str]:
     """Extract the host and project path, e.g. group/sub/proj, from a git remote url."""
     if "://" in url:
@@ -602,11 +612,7 @@ class Forgejo(Service):
         Safe to re-run: an existing forgejo remote skips the create step, and
         the other steps are idempotent."""
         del kwargs
-        candidates = [branch] if branch else ["main", "master"]
-        branch = next((name for name in candidates if local_branch_exists(name)), None)
-        if not branch:
-            sys.exit(f"no local branch {' or '.join(candidates)} to publish; pass --branch")
-
+        branch = local_branch_or_default(branch)
         if self.name in git("remote").split():
             print(f"{self.name} remote exists, not creating the repo")
         else:
