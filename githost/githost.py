@@ -783,7 +783,8 @@ class Forgejo(Service):
         started is not missed. since names the event to wait after instead,
         as comment:ID or review:ID (e.g. to skip feedback that needed no
         reply), or "none" for any feedback. Also returns when the PR is
-        closed or merged."""
+        closed or merged. Network errors are retried every interval, so a
+        restart of the server doesn't end the wait."""
         del kwargs
         repo = self.repo_path(remote)
         number = self.pr_number(repo, number)
@@ -792,11 +793,16 @@ class Forgejo(Service):
         no_cutoff = datetime.min.replace(tzinfo=timezone.utc)
         since_time: Optional[datetime] = None
         while True:
-            pr = self.get(f"/repos/{repo}/pulls/{number}")
-            if pr["state"] != "open":
-                print(f"#{number} is {'merged' if pr.get('merged') else pr['state']}")
-                return
-            activity = self.pr_activity(repo, number)
+            try:
+                pr = self.get(f"/repos/{repo}/pulls/{number}")
+                if pr["state"] != "open":
+                    print(f"#{number} is {'merged' if pr.get('merged') else pr['state']}")
+                    return
+                activity = self.pr_activity(repo, number)
+            except (requests.ConnectionError, requests.Timeout) as err:
+                print(f"#{number}: {err}; retrying in {interval:g}s", file=sys.stderr)
+                time.sleep(interval)
+                continue
             if since_time is None:
                 if since == "none":
                     since_time = no_cutoff

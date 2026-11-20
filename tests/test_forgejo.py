@@ -419,6 +419,25 @@ A few things.
         self.assertIn("no event review:99", ctx.exception.code)
 
     @mock.patch("time.sleep")
+    def test_pr_wait_retries_network_errors(self, sleep, check_output):
+        del check_output
+        self.send.side_effect = [
+            fake_response({"login": "alice"}),
+            requests.ConnectionError("Connection reset by peer"),
+            fake_response({"state": "open", "created_at": "2026-01-01T00:00:00Z"}),
+            requests.Timeout("timed out"),
+            fake_response({"state": "closed", "merged": True}),
+        ]
+        with mock.patch("sys.stdout", new_callable=io.StringIO) as out, \
+             mock.patch("sys.stderr", new_callable=io.StringIO) as err:
+            self.service.pr_wait(number=7, interval=5)
+        self.assertEqual(sleep.call_args_list, [mock.call(5), mock.call(5)])
+        self.assertEqual(err.getvalue(),
+                         "#7: Connection reset by peer; retrying in 5s\n"
+                         "#7: timed out; retrying in 5s\n")
+        self.assertEqual(out.getvalue(), "#7 is merged\n")
+
+    @mock.patch("time.sleep")
     def test_pr_wait_returns_when_merged(self, sleep, check_output):
         del check_output
         self.send.side_effect = [
