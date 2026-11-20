@@ -169,6 +169,10 @@ class Service:
     def password(self, prompt: str = "enter password: ") -> str:
         """Read or prompt for the service password or token."""
         if not self.auth.passwd and not self.read_authinfo():
+            if not sys.stdin.isatty():
+                login = f"login {self.auth.user}" if self.auth.user else "a login"
+                sys.exit(f"no token for {login} at {self.api_host()} in "
+                         f"{self.auth.authinfo}, and no terminal to ask for one")
             self.auth.passwd = getpass.getpass(prompt)
             authinfo = self.auth.authinfo
             passwd = self.auth.passwd
@@ -886,7 +890,9 @@ def main(argv: Optional[List[str]] = None, service: Optional[Type[Service]] = No
     # help = "one of {}".format(" ".join(SERVICES.keys())))
     parser.add_argument("-a", "--authinfo", help=".authinfo or .netrc file path",
                         default=os.path.expanduser("~/.authinfo"))
-    parser.add_argument("-u", "--username", help="user name for the selected service")
+    parser.add_argument("-u", "--username", default=os.environ.get("GITHOST_USER") or None,
+                        help="user name for the selected service (default: $GITHOST_USER, "
+                        "else the first authinfo line for the host)")
     parser.add_argument("-b", "--base-url",
                         help="API base url, e.g. https://gitlab.example.com/api/v4 "
                         "for a self-hosted gitlab")
