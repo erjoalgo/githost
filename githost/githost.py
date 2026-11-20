@@ -109,6 +109,11 @@ class PrEvent:
     note: str = ""
 
 
+def md_quote(body: str) -> str:
+    """Returns body as a markdown quote, as comment-pr -r quotes the comment it answers."""
+    return "\n".join(f"> {line}" for line in body.splitlines())
+
+
 class Service:
     """Base class holding the common implementation for interacting with a git-hosting service."""
     name: str
@@ -755,23 +760,50 @@ class Forgejo(Service):
                     print("    " + hunk.replace("\n", "\n    "))
                 print("  " + comment["body"].replace("\n", "\n  "))
 
-    def pr_activity(self, repo: str, number: int) -> List[PrEvent]:
-        """Returns each comment and submitted review on a PR.
+    @staticmethod
+    def pr_activity(comments: List[Any], reviews: List[Any]) -> List[PrEvent]:
+        """Returns each of a PR's comments and submitted reviews as an event.
 
         The time is the latest of creation and last edit, so edits count as activity."""
         def when(item: Any, *keys: str) -> datetime:
             return max(datetime.fromisoformat(item[key]) for key in keys if item.get(key))
         activity = []
-        for comment in self.get_all(f"/repos/{repo}/issues/{number}/comments"):
+        for comment in comments:
             activity.append(PrEvent(when(comment, "created_at", "updated_at"),
                                     comment["user"]["login"], f"comment:{comment['id']}"))
-        for review in self.get_all(f"/repos/{repo}/pulls/{number}/reviews"):
+        for review in reviews:
             if review["state"] == "PENDING":
                 continue
             activity.append(PrEvent(when(review, "submitted_at", "updated_at"),
                                     review["user"]["login"], f"review:{review['id']}",
                                     f" ({review['state']})"))
         return activity
+
+    def pr_unreplied(self, repo: str, number: int, me: str,
+                     comments: List[Any], reviews: List[Any]) -> List[str]:
+        """Returns a line for each comment by others that none of ours quotes.
+
+        comment-pr -r quotes the comment it answers, so a comment counts as
+        replied once one of ours contains its quoted text. Covers general
+        comments and inline review comments, skipping resolved ones."""
+        ours = [comment["body"] for comment in comments if comment["user"]["login"] == me]
+        theirs = [comment for comment in comments if comment["user"]["login"] != me]
+        for review in reviews:
+            if review["state"] != "PENDING" and review.get("comments_count"):
+                theirs += [comment for comment in self.get(
+                    f"/repos/{repo}/pulls/{number}/reviews/{review['id']}/comments")
+                           if comment["user"]["login"] != me and not comment.get("resolver")]
+        lines = []
+        for comment in theirs:
+            quoted = md_quote(comment["body"])
+            if not quoted or any(quoted in body for body in ours):
+                continue
+            where = (f" on {comment['path']}:"
+                     f"{comment.get('position') or comment.get('original_position')}"
+                     if comment.get("path") else "")
+            lines.append(f"#{number}: unreplied comment {comment['id']}"
+                         f" by {comment['user']['login']}{where}")
+        return lines
 
     def pr_wait(self, remote: Optional[str] = None, number: Optional[int] = None,
                 interval: float = 30, since: Optional[str] = None, **kwargs: Any) -> None:
@@ -783,7 +815,9 @@ class Forgejo(Service):
         started is not missed. since names the event to wait after instead,
         as comment:ID or review:ID (e.g. to skip feedback that needed no
         reply), or "none" for any feedback. Also returns when the PR is
-        closed or merged. Network errors are retried every interval, so a
+        closed or merged, or while any comment by others is unreplied (see
+        pr_unreplied), however old, so comments that arrive while we answer
+        others aren't lost behind our replies. Network errors are retried every interval, so a
         restart of the server doesn't end the wait."""
         del kwargs
         repo = self.repo_path(remote)
@@ -798,7 +832,10 @@ class Forgejo(Service):
                 if pr["state"] != "open":
                     print(f"#{number} is {'merged' if pr.get('merged') else pr['state']}")
                     return
-                activity = self.pr_activity(repo, number)
+                comments = self.get_all(f"/repos/{repo}/issues/{number}/comments")
+                reviews = self.get_all(f"/repos/{repo}/pulls/{number}/reviews")
+                activity = self.pr_activity(comments, reviews)
+                unreplied = self.pr_unreplied(repo, number, me, comments, reviews)
             except (requests.ConnectionError, requests.Timeout) as err:
                 print(f"#{number}: {err}; retrying in {interval:g}s", file=sys.stderr)
                 time.sleep(interval)
@@ -817,11 +854,14 @@ class Forgejo(Service):
                                      default=no_cutoff)
             feedback = sorted(item for item in activity
                               if item.author != me and item.time > since_time)
-            if feedback:
+            if feedback or unreplied:
                 for item in feedback:
                     print(f"#{number}: {item.event}{item.note} by {item.author}"
                           f" at {item.time.isoformat()}")
-                print(f"to wait for more: wait-pr {number} --since {feedback[-1].event}")
+                for line in unreplied:
+                    print(line)
+                if feedback:
+                    print(f"to wait for more: wait-pr {number} --since {feedback[-1].event}")
                 return
             time.sleep(interval)
 
@@ -858,7 +898,7 @@ class Forgejo(Service):
             where = (f" on `{target['path']}:"
                      f"{target.get('position') or target.get('original_position')}`"
                      if target.get("path") else "")
-            quoted = "\n".join(f"> {line}" for line in target["body"].splitlines())
+            quoted = md_quote(target["body"])
             quote = f"Re: {target['user']['login']}'s comment{where}:\n{quoted}\n\n"
         if not message:
             message = interactive_edit(f"{quote}").strip()

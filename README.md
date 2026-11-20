@@ -137,6 +137,9 @@ file:line for inline review comments (ids are shown by `show-pr`):
 Wait for new feedback on a pull request: blocks until someone else comments or
 submits a review after your own last comment, or the PR is closed or merged,
 then prints what arrived and how to resume after it (`--since review:ID`, for feedback
-that needed no reply). It polls the API every 30 seconds (`-i` to change):
+that needed no reply). It also returns while any comment by someone else,
+general or inline, has no reply, however old: a comment counts as answered
+once one of yours quotes it, as `comment-pr -r` does. Network errors are
+retried. It polls the API every 30 seconds (`-i` to change):
 
 `gfj wait-pr [NUMBER]`
