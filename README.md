@@ -87,8 +87,9 @@ with an access token (Settings → Applications), stored in `~/.authinfo` under
 the API host, e.g. `machine localhost login alice password <token>`.
 With several logins for one host, `-u` picks the line; it defaults to
 `$GITHOST_USER`, else the first line for the host. E.g. to have your shells act
-as you while an agent's shells use its own account:
-`[ -n "$CLAUDECODE" ] || export GITHOST_USER=${GITHOST_USER:-alice}`.
+as you while an agent uses its own account, put your line first and set
+`GITHOST_USER=agent` only in the agent's environment. Your shells then need no
+variable, and the agent never falls back to your token.
 
 Create a repo for the current directory and add it as the `forgejo` remote:
 
