@@ -340,7 +340,7 @@ A few things.
         self.assertEqual((post.method, post.url),
                          ("POST", f"{API}/repos/alice/proj/issues/7/comments"))
         self.assertEqual(json.loads(post.body)["body"],
-                         "Re: bob's comment on `a.py:12`:\n> rename y\n> please\n\nDone.")
+                         "Re: bob's comment 10 on `a.py:12`:\n> rename y\n> please\n\nDone.")
         self.assertEqual(out.getvalue(), "http://x/pulls/7#issuecomment-11\n")
 
     def test_pr_comment_reply_to_unknown_comment_exits(self, check_output):
@@ -354,7 +354,7 @@ A few things.
     def test_pr_wait_returns_on_feedback_newer_than_our_last_comment(self, sleep, check_output):
         del check_output
         pr = {"state": "open", "created_at": "2026-01-01T00:00:00Z"}
-        ours = {"id": 5, "user": {"login": "alice"}, "body": "Re: bob's comment:\n> old\n\nDone.",
+        ours = {"id": 5, "user": {"login": "alice"}, "body": "Re: bob's comment 4:\n> old\n\nDone.",
                 "created_at": "2026-01-02T00:00:00Z", "updated_at": "2026-01-02T00:00:00Z"}
         old = {"id": 4, "user": {"login": "bob"}, "body": "old",
                "created_at": "2026-01-01T12:00:00Z", "updated_at": "2026-01-01T12:00:00Z"}
@@ -414,9 +414,10 @@ A few things.
         def comment(id_, login, body, time):
             return {"id": id_, "user": {"login": login}, "body": body,
                     "created_at": time, "updated_at": time}
-        answered = comment(1, "bob", "rename x", "2026-01-01T00:00:00Z")
+        # edited after the reply: still replied, as replies name the id
+        answered = comment(1, "bob", "rename x and z", "2026-01-01T00:03:00Z")
         missed = comment(2, "bob", "and y", "2026-01-01T00:01:00Z")
-        ours = comment(3, "alice", "Re: bob's comment:\n> rename x\n\nDone.",
+        ours = comment(3, "alice", "Re: bob's comment 1:\n> rename x\n\nDone.",
                        "2026-01-01T00:02:00Z")
         review = {"id": 9, "user": {"login": "bob"}, "state": "COMMENT", "comments_count": 2,
                   "submitted_at": "2026-01-01T00:00:30Z", "updated_at": "2026-01-01T00:00:30Z"}
@@ -433,8 +434,10 @@ A few things.
         with mock.patch("sys.stdout", new_callable=io.StringIO) as out:
             self.service.pr_wait(number=7)
         self.assertEqual(out.getvalue(),
+                         "#7: comment:1 by bob at 2026-01-01T00:03:00+00:00\n"
                          "#7: unreplied comment 2 by bob\n"
-                         "#7: unreplied comment 10 by bob on a.py:12\n")
+                         "#7: unreplied comment 10 by bob on a.py:12\n"
+                         "to wait for more: wait-pr 7 --since comment:1\n")
         self.assertEqual(self.sent()[-1].url,
                          f"{API}/repos/alice/proj/pulls/7/reviews/9/comments")
 

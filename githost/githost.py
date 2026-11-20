@@ -109,11 +109,6 @@ class PrEvent:
     note: str = ""
 
 
-def md_quote(body: str) -> str:
-    """Returns body as a markdown quote, as comment-pr -r quotes the comment it answers."""
-    return "\n".join(f"> {line}" for line in body.splitlines())
-
-
 class Service:
     """Base class holding the common implementation for interacting with a git-hosting service."""
     name: str
@@ -781,12 +776,15 @@ class Forgejo(Service):
 
     def pr_unreplied(self, repo: str, number: int, me: str,
                      comments: List[Any], reviews: List[Any]) -> List[str]:
-        """Returns a line for each comment by others that none of ours quotes.
+        """Returns a line for each comment by others that none of ours answers.
 
-        comment-pr -r quotes the comment it answers, so a comment counts as
-        replied once one of ours contains its quoted text. Covers general
-        comments and inline review comments, skipping resolved ones."""
-        ours = [comment["body"] for comment in comments if comment["user"]["login"] == me]
+        comment-pr -r starts a reply with "Re: USER's comment ID", so a
+        comment counts as replied once one of ours names its id; edits to
+        either comment don't change that. Covers general comments and
+        inline review comments, skipping resolved ones."""
+        replied = {int(match) for comment in comments if comment["user"]["login"] == me
+                   for match in re.findall(r"^Re: \S+'s comment (\d+)\b",
+                                           comment["body"], re.MULTILINE)}
         theirs = [comment for comment in comments if comment["user"]["login"] != me]
         for review in reviews:
             if review["state"] != "PENDING" and review.get("comments_count"):
@@ -795,8 +793,7 @@ class Forgejo(Service):
                            if comment["user"]["login"] != me and not comment.get("resolver")]
         lines = []
         for comment in theirs:
-            quoted = md_quote(comment["body"])
-            if not quoted or any(quoted in body for body in ours):
+            if comment["id"] in replied:
                 continue
             where = (f" on {comment['path']}:"
                      f"{comment.get('position') or comment.get('original_position')}"
@@ -898,8 +895,9 @@ class Forgejo(Service):
             where = (f" on `{target['path']}:"
                      f"{target.get('position') or target.get('original_position')}`"
                      if target.get("path") else "")
-            quoted = md_quote(target["body"])
-            quote = f"Re: {target['user']['login']}'s comment{where}:\n{quoted}\n\n"
+            quoted = "\n".join(f"> {line}" for line in target["body"].splitlines())
+            quote = (f"Re: {target['user']['login']}'s comment {target['id']}{where}:\n"
+                     f"{quoted}\n\n")
         if not message:
             message = interactive_edit(f"{quote}").strip()
         else:
