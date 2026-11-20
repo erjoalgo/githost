@@ -340,7 +340,7 @@ A few things.
         self.assertEqual((post.method, post.url),
                          ("POST", f"{API}/repos/alice/proj/issues/7/comments"))
         self.assertEqual(json.loads(post.body)["body"],
-                         "Re: bob's comment on `a.py:12`:\n> rename y\n> please\n\nDone.")
+                         "Re: bob's comment 10 on `a.py:12`:\n> rename y\n> please\n\nDone.")
         self.assertEqual(out.getvalue(), "http://x/pulls/7#issuecomment-11\n")
 
     def test_pr_comment_reply_to_unknown_comment_exits(self, check_output):
@@ -354,9 +354,9 @@ A few things.
     def test_pr_wait_returns_on_feedback_newer_than_our_last_comment(self, sleep, check_output):
         del check_output
         pr = {"state": "open", "created_at": "2026-01-01T00:00:00Z"}
-        ours = {"id": 5, "user": {"login": "alice"},
+        ours = {"id": 5, "user": {"login": "alice"}, "body": "Re: bob's comment 4:\n> old\n\nDone.",
                 "created_at": "2026-01-02T00:00:00Z", "updated_at": "2026-01-02T00:00:00Z"}
-        old = {"id": 4, "user": {"login": "bob"},
+        old = {"id": 4, "user": {"login": "bob"}, "body": "old",
                "created_at": "2026-01-01T12:00:00Z", "updated_at": "2026-01-01T12:00:00Z"}
         review = {"id": 9, "user": {"login": "bob"}, "state": "REQUEST_CHANGES",
                   "submitted_at": "2026-01-03T00:00:00Z", "updated_at": "2026-01-03T00:00:00Z"}
@@ -380,7 +380,7 @@ A few things.
         del check_output
         approval = {"id": 9, "user": {"login": "bob"}, "state": "APPROVED",
                     "submitted_at": "2026-01-03T00:00:00Z", "updated_at": "2026-01-03T00:00:00Z"}
-        comment = {"id": 11, "user": {"login": "bob"},
+        comment = {"id": 11, "user": {"login": "bob"}, "body": "nit",
                    "created_at": "2026-01-04T00:00:00Z", "updated_at": "2026-01-04T00:00:00Z"}
         pr = {"state": "open", "created_at": "2026-01-01T00:00:00Z"}
         self.send.side_effect = [
@@ -399,7 +399,7 @@ A few things.
     def test_pr_wait_since_none_and_no_activity_of_ours_count_all_feedback(
             self, sleep, check_output):
         del sleep, check_output
-        old = {"id": 4, "user": {"login": "bob"},
+        old = {"id": 4, "user": {"login": "bob"}, "body": "old",
                "created_at": "2026-01-01T12:00:00Z", "updated_at": "2026-01-01T12:00:00Z"}
         pr = {"state": "open", "created_at": "2026-01-02T00:00:00Z"}
         for since in ("none", None):
@@ -409,6 +409,38 @@ A few things.
                 self.service.pr_wait(number=7, since=since)
             self.assertTrue(out.getvalue().startswith("#7: comment:4 by bob"), since)
 
+    def test_pr_wait_reports_unreplied_comments_older_than_ours(self, check_output):
+        del check_output
+        def comment(id_, login, body, time):
+            return {"id": id_, "user": {"login": login}, "body": body,
+                    "created_at": time, "updated_at": time}
+        # edited after the reply: still replied, as replies name the id
+        answered = comment(1, "bob", "rename x and z", "2026-01-01T00:03:00Z")
+        missed = comment(2, "bob", "and y", "2026-01-01T00:01:00Z")
+        ours = comment(3, "alice", "Re: bob's comment 1:\n> rename x\n\nDone.",
+                       "2026-01-01T00:02:00Z")
+        review = {"id": 9, "user": {"login": "bob"}, "state": "COMMENT", "comments_count": 2,
+                  "submitted_at": "2026-01-01T00:00:30Z", "updated_at": "2026-01-01T00:00:30Z"}
+        inline = dict(comment(10, "bob", "typo", "2026-01-01T00:00:30Z"),
+                      path="a.py", position=12)
+        resolved = dict(comment(11, "bob", "style", "2026-01-01T00:00:30Z"),
+                        path="a.py", position=3, resolver={"login": "bob"})
+        self.send.side_effect = [
+            fake_response({"login": "alice"}),
+            fake_response({"state": "open", "created_at": "2026-01-01T00:00:00Z"}),
+            fake_response([answered, missed, ours]), fake_response([review]),
+            fake_response([inline, resolved]),
+        ]
+        with mock.patch("sys.stdout", new_callable=io.StringIO) as out:
+            self.service.pr_wait(number=7)
+        self.assertEqual(out.getvalue(),
+                         "#7: comment:1 by bob at 2026-01-01T00:03:00+00:00\n"
+                         "#7: unreplied comment 2 by bob\n"
+                         "#7: unreplied comment 10 by bob on a.py:12\n"
+                         "to wait for more: wait-pr 7 --since comment:1\n")
+        self.assertEqual(self.sent()[-1].url,
+                         f"{API}/repos/alice/proj/pulls/7/reviews/9/comments")
+
     def test_pr_wait_unknown_since_event_exits(self, check_output):
         del check_output
         self.send.side_effect = [fake_response({"login": "alice"}),
@@ -417,6 +449,25 @@ A few things.
         with self.assertRaises(SystemExit) as ctx:
             self.service.pr_wait(number=7, since="review:99")
         self.assertIn("no event review:99", ctx.exception.code)
+
+    @mock.patch("time.sleep")
+    def test_pr_wait_retries_network_errors(self, sleep, check_output):
+        del check_output
+        self.send.side_effect = [
+            fake_response({"login": "alice"}),
+            requests.ConnectionError("Connection reset by peer"),
+            fake_response({"state": "open", "created_at": "2026-01-01T00:00:00Z"}),
+            requests.Timeout("timed out"),
+            fake_response({"state": "closed", "merged": True}),
+        ]
+        with mock.patch("sys.stdout", new_callable=io.StringIO) as out, \
+             mock.patch("sys.stderr", new_callable=io.StringIO) as err:
+            self.service.pr_wait(number=7, interval=5)
+        self.assertEqual(sleep.call_args_list, [mock.call(5), mock.call(5)])
+        self.assertEqual(err.getvalue(),
+                         "#7: Connection reset by peer; retrying in 5s\n"
+                         "#7: timed out; retrying in 5s\n")
+        self.assertEqual(out.getvalue(), "#7 is merged\n")
 
     @mock.patch("time.sleep")
     def test_pr_wait_returns_when_merged(self, sleep, check_output):
