@@ -169,6 +169,10 @@ class Service:
     def password(self, prompt: str = "enter password: ") -> str:
         """Read or prompt for the service password or token."""
         if not self.auth.passwd and not self.read_authinfo():
+            if not sys.stdin.isatty():
+                login = f"login {self.auth.user}" if self.auth.user else "a login"
+                sys.exit(f"no token for {login} at {self.api_host()} in "
+                         f"{self.auth.authinfo}, and no terminal to ask for one")
             self.auth.passwd = getpass.getpass(prompt)
             authinfo = self.auth.authinfo
             passwd = self.auth.passwd
