@@ -886,9 +886,8 @@ def main(argv: Optional[List[str]] = None, service: Optional[Type[Service]] = No
     # help = "one of {}".format(" ".join(SERVICES.keys())))
     parser.add_argument("-a", "--authinfo", help=".authinfo or .netrc file path",
                         default=os.path.expanduser("~/.authinfo"))
-    parser.add_argument("-u", "--username",
-                        help="user name for the selected service (default: "
-                        "$GITHOST_<SERVICE>_USER, e.g. $GITHOST_FORGEJO_USER, "
+    parser.add_argument("-u", "--username", default=os.environ.get("GITHOST_USER") or None,
+                        help="user name for the selected service (default: $GITHOST_USER, "
                         "else the first authinfo line for the host)")
     parser.add_argument("-b", "--base-url",
                         help="API base url, e.g. https://gitlab.example.com/api/v4 "
@@ -1050,11 +1049,10 @@ def main(argv: Optional[List[str]] = None, service: Optional[Type[Service]] = No
         requests_log.setLevel(logging.DEBUG)
         requests_log.propagate = True
 
+    auth = Auth(user=args.username, authinfo=args.authinfo, passwd=None)
     service_cls = SERVICES.get(args.service)
     if not service_cls:
         raise ValueError(f"Invalid service: {args.service}")
-    username = args.username or os.environ.get(f"GITHOST_{service_cls.name.upper()}_USER") or None
-    auth = Auth(user=username, authinfo=args.authinfo, passwd=None)
     svc = service_cls(auth=auth)
     if args.base_url:
         svc.base = args.base_url.rstrip("/")
