@@ -350,6 +350,40 @@ A few things.
             self.service.pr_comment(number=7, message="x", reply_to=99)
         self.assertEqual(ctx.exception.code, "no comment 99 on PR #7")
 
+    def test_pr_edit_appends_to_description(self, check_output):
+        del check_output
+        self.send.side_effect = [
+            fake_response({"body": "What changed.\n"}),
+            fake_response({"html_url": "http://x/pulls/7"})]
+        with mock.patch("sys.stdout", new_callable=io.StringIO) as out:
+            self.service.pr_edit(number=7, append_description="Update: retargeted.")
+        get, patch = self.sent()
+        self.assertEqual((get.method, get.url), ("GET", f"{API}/repos/alice/proj/pulls/7"))
+        self.assertEqual((patch.method, patch.url),
+                         ("PATCH", f"{API}/repos/alice/proj/pulls/7"))
+        self.assertEqual(json.loads(patch.body),
+                         {"body": "What changed.\n\nUpdate: retargeted."})
+        self.assertEqual(out.getvalue(), "http://x/pulls/7\n")
+
+    def test_pr_edit_title_and_target_leave_description(self, check_output):
+        del check_output
+        self.send.return_value = fake_response({"html_url": "http://x/pulls/7"})
+        with mock.patch("sys.stdout", new_callable=io.StringIO):
+            self.service.pr_edit(number=7, title="New", target_branch="main")
+        patch, = self.sent()
+        self.assertEqual(json.loads(patch.body), {"title": "New", "base": "main"})
+
+    @mock.patch.object(githost, "interactive_edit", return_value="Edited.\n")
+    def test_pr_edit_without_changes_opens_editor(self, edit, check_output):
+        del check_output
+        self.send.side_effect = [
+            fake_response({"body": "Old."}),
+            fake_response({"html_url": "http://x/pulls/7"})]
+        with mock.patch("sys.stdout", new_callable=io.StringIO):
+            self.service.pr_edit(number=7)
+        edit.assert_called_once_with("Old.")
+        self.assertEqual(json.loads(self.sent()[-1].body), {"body": "Edited."})
+
     @mock.patch("time.sleep")
     def test_pr_wait_returns_on_feedback_newer_than_our_last_comment(self, sleep, check_output):
         del check_output
