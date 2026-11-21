@@ -907,6 +907,33 @@ class Forgejo(Service):
         resp = self.req_send(req, print_json=False)
         print(resp.json()["html_url"])
 
+    def pr_edit(self, remote: Optional[str] = None, number: Optional[int] = None,
+                title: Optional[str] = None, description: Optional[str] = None,
+                append_description: Optional[str] = None,
+                target_branch: Optional[str] = None, **kwargs: Any) -> None:
+        """Change a pull request's title, description or target branch.
+
+        append_description adds a paragraph after the current description.
+        With no change given, opens the current description in an editor."""
+        del kwargs
+        repo = self.repo_path(remote)
+        number = self.pr_number(repo, number)
+        url = f"/repos/{repo}/pulls/{number}"
+        data: Dict[str, Any] = {}
+        if title:
+            data["title"] = title
+        if target_branch:
+            data["base"] = target_branch
+        if description is not None:
+            data["body"] = description
+        elif append_description:
+            body = (self.get(url).get("body") or "").rstrip()
+            data["body"] = f"{body}\n\n{append_description}" if body else append_description
+        elif not data:
+            data["body"] = interactive_edit(self.get(url).get("body") or "").strip()
+        resp = self.req_send(requests.Request("PATCH", url, json=data), print_json=False)
+        print(resp.json()["html_url"])
+
 SERVICES: Dict[str, Type[Service]] = {
     name: service
     for service in [Github, Bitbucket, Gitlab, Forgejo]
@@ -1068,6 +1095,20 @@ def main(argv: Optional[List[str]] = None, service: Optional[Type[Service]] = No
         parser_prcomment.add_argument("-r", "--reply-to", type=int, metavar="COMMENT_ID",
                                       help="quote this comment (an id from show-pr)")
         parser_prcomment.set_defaults(func="pr_comment")
+
+    if supports("pr_edit"):
+        parser_predit = subparsers.add_parser(
+            "edit-pr", help="change a pull request's title, description or target (forgejo)")
+        parser_predit.add_argument("number", nargs="?", type=int,
+                                   help="default: the open PR for the current branch")
+        parser_predit.add_argument("-R", "--remote", help=pr_remote_help)
+        parser_predit.add_argument("--title", help="new title")
+        group = parser_predit.add_mutually_exclusive_group()
+        group.add_argument("-d", "--description", help="new description")
+        group.add_argument("-a", "--append-description", metavar="TEXT",
+                           help="add a paragraph after the current description")
+        parser_predit.add_argument("-t", "--target-branch", help="new target branch")
+        parser_predit.set_defaults(func="pr_edit")
 
     if supports("pr_wait"):
         parser_prwait = subparsers.add_parser(
