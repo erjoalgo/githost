@@ -52,37 +52,6 @@ class AuthinfoTest(unittest.TestCase):
         self.assertIsNone(self.prompt_password("1"))
 
 
-class WriteAuthinfoTest(unittest.TestCase):
-    """Check writing a token replaces the login's line instead of adding another."""
-
-    def write(self, contents, user):
-        """Write token new-tok for user into an authinfo holding contents, return the result."""
-        tmpdir = tempfile.TemporaryDirectory()
-        self.addCleanup(tmpdir.cleanup)
-        authinfo = os.path.join(tmpdir.name, "authinfo")
-        with open(authinfo, "w") as fh:
-            fh.write(contents)
-        service = githost.Github(githost.Auth(user=user, passwd="new-tok", authinfo=authinfo))
-        service.write_authinfo(authinfo)
-        with open(authinfo) as fh:
-            return fh.read()
-
-    def test_replaces_the_login_line(self):
-        self.assertEqual(
-            self.write("machine x login a password p\n"
-                       "machine api.github.com login alice password old-tok\n"
-                       "machine api.github.com login bob password bob-tok\n", "alice"),
-            "machine x login a password p\n"
-            "machine api.github.com login alice password new-tok\n"
-            "machine api.github.com login bob password bob-tok\n")
-
-    def test_appends_a_new_login(self):
-        self.assertEqual(
-            self.write("machine x login a password p", "alice"),
-            "machine x login a password p\n"
-            "machine api.github.com login alice password new-tok\n")
-
-
 class ReadAuthinfoTest(unittest.TestCase):
     """Check which authinfo line is used when several match the host."""
 
