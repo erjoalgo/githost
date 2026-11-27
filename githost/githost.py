@@ -183,10 +183,10 @@ class Service:
         assert self.auth.passwd is not None
         return self.auth.passwd
 
-    def offer_new_token(self) -> bool:
-        """After the service rejected the token, offer to prompt for a new one.
+    def forget_rejected_token(self) -> bool:
+        """After the service rejected the token, offer to forget it from memory and authinfo.
 
-        Returns whether the user accepted."""
+        Returns whether it was forgotten, so the next req_auth prompts for a new one."""
         if not sys.stdin.isatty():
             return False
         # a 401 on a request the token can't do, rather than a dead token, would leave
@@ -248,7 +248,7 @@ class Service:
             self.req_auth(req)
         logger.debug("%s %s:\n%s\n%s\n%s", req.method, req.url, req.json, req.data, req.params)
         resp = requests.Session().send(req.prepare())
-        if resp.status_code == 401 and add_auth and self.offer_new_token():
+        if resp.status_code == 401 and add_auth and self.forget_rejected_token():
             self.req_auth(req)
             resp = requests.Session().send(req.prepare())
         if missing_ok and resp.status_code == 404:
