@@ -115,6 +115,7 @@ class Service:
     alias: str
     display_name: str
     base: str
+    token_rejected = False
 
     def __init__(self, auth: Auth) -> None:
         self.auth = auth
@@ -177,7 +178,7 @@ class Service:
 
     def password(self, prompt: str = "enter password: ") -> str:
         """Read or prompt for the service password or token."""
-        if not self.auth.passwd and not self.read_authinfo():
+        if not self.auth.passwd and (self.token_rejected or not self.read_authinfo()):
             if not sys.stdin.isatty():
                 login = f"login {self.auth.user}" if self.auth.user else "a login"
                 sys.exit(f"no token for {login} at {self.api_host()} in "
@@ -191,6 +192,20 @@ class Service:
             self.auth.passwd = passwd
         assert self.auth.passwd is not None
         return self.auth.passwd
+
+    def offer_new_token(self) -> bool:
+        """After the service rejected the token, offer to prompt for a new one.
+
+        Returns whether the user accepted."""
+        if not sys.stdin.isatty():
+            return False
+        print(f"{self.display_name} rejected the token for {self.user()} at {self.api_host()}")
+        if read_choice(["yes", "no"], prompt="enter a new token? ") != "yes":
+            return False
+        self.auth.passwd = None
+        # keeps password() from reading the rejected token back from authinfo
+        self.token_rejected = True
+        return True
 
     def req_auth(self, req: requests.Request, prompt: Optional[str] = None) -> None:
         """Fill in the request's authentication details."""
@@ -217,6 +232,9 @@ class Service:
             self.req_auth(req)
         logger.debug("%s %s:\n%s\n%s\n%s", req.method, req.url, req.json, req.data, req.params)
         resp = requests.Session().send(req.prepare())
+        if resp.status_code == 401 and add_auth and self.offer_new_token():
+            self.req_auth(req)
+            resp = requests.Session().send(req.prepare())
         if missing_ok and resp.status_code == 404:
             return None
         if not resp.ok:

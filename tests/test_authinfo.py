@@ -6,6 +6,8 @@ import tempfile
 import unittest
 from unittest import mock
 
+import requests
+
 from githost import githost
 
 
@@ -105,6 +107,57 @@ class ReadAuthinfoTest(unittest.TestCase):
 
     def test_username_without_a_line_is_not_replaced(self):
         self.assertEqual(self.read("bob"), ("bob", None))
+
+
+class RejectedTokenTest(unittest.TestCase):
+    """Check a rejected token can be replaced and the request retried."""
+
+    def send(self, isatty, answer="0"):
+        """POST through a service whose stored token gets a 401.
+
+        Returns (tokens sent, authinfo contents)."""
+        tmpdir = tempfile.TemporaryDirectory()
+        self.addCleanup(tmpdir.cleanup)
+        authinfo = os.path.join(tmpdir.name, "authinfo")
+        with open(authinfo, "w") as fh:
+            fh.write("machine api.github.com login alice password old-tok\n")
+        service = githost.Github(githost.Auth(user=None, passwd=None, authinfo=authinfo))
+        sent = []
+
+        def send(_session, prepared):
+            token = prepared.headers["Authorization"]
+            sent.append(token)
+            resp = requests.Response()
+            resp.status_code = 401 if len(sent) == 1 else 200
+            resp._content = b"{}"
+            return resp
+
+        with mock.patch("requests.Session.send", send), \
+             mock.patch("sys.stdin.isatty", return_value=isatty), \
+             mock.patch("getpass.getpass", return_value="new-tok"), \
+             mock.patch("builtins.input", return_value=answer), \
+             mock.patch("sys.stdout", new_callable=io.StringIO):
+            try:
+                service.req_send(requests.Request("POST", "/user/keys", json={}))
+            except requests.HTTPError:
+                pass
+        with open(authinfo) as fh:
+            return sent, fh.read()
+
+    def test_new_token_is_saved_and_retried(self):
+        sent, contents = self.send(isatty=True)
+        self.assertEqual(len(sent), 2)
+        self.assertNotEqual(sent[0], sent[1])
+        self.assertEqual(contents, "machine api.github.com login alice password new-tok\n")
+
+    def test_declining_keeps_the_token(self):
+        sent, contents = self.send(isatty=True, answer="1")
+        self.assertEqual(len(sent), 1)
+        self.assertEqual(contents, "machine api.github.com login alice password old-tok\n")
+
+    def test_without_a_terminal_does_not_prompt(self):
+        sent, _ = self.send(isatty=False)
+        self.assertEqual(len(sent), 1)
 
 
 if __name__ == "__main__":
