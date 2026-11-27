@@ -140,6 +140,10 @@ in an editor:
 
 `gfj edit-pr 7 -a "Update: now targets main."`
 
+Close a pull request without merging it, with an optional comment saying why:
+
+`gfj close-pr 7 -m "Superseded by #8."`
+
 Wait for new feedback on a pull request: blocks until someone else comments or
 submits a review after your own last comment, or the PR is closed or merged,
 then prints what arrived and how to resume after it (`--since review:ID`, for feedback

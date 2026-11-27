@@ -934,6 +934,19 @@ class Forgejo(Service):
         resp = self.req_send(requests.Request("PATCH", url, json=data), print_json=False)
         print(resp.json()["html_url"])
 
+    def pr_close(self, remote: Optional[str] = None, number: Optional[int] = None,
+                 message: Optional[str] = None, **kwargs: Any) -> None:
+        """Close a pull request without merging it, first commenting message if given."""
+        del kwargs
+        repo = self.repo_path(remote)
+        number = self.pr_number(repo, number)
+        if message:
+            self.req_send(requests.Request("POST", f"/repos/{repo}/issues/{number}/comments",
+                                           json={"body": message}), print_json=False)
+        resp = self.req_send(requests.Request("PATCH", f"/repos/{repo}/pulls/{number}",
+                                              json={"state": "closed"}), print_json=False)
+        print(resp.json()["html_url"])
+
 SERVICES: Dict[str, Type[Service]] = {
     name: service
     for service in [Github, Bitbucket, Gitlab, Forgejo]
@@ -1109,6 +1122,15 @@ def main(argv: Optional[List[str]] = None, service: Optional[Type[Service]] = No
                            help="add a paragraph after the current description")
         parser_predit.add_argument("-t", "--target-branch", help="new target branch")
         parser_predit.set_defaults(func="pr_edit")
+
+    if supports("pr_close"):
+        parser_prclose = subparsers.add_parser(
+            "close-pr", help="close a pull request without merging it (forgejo)")
+        parser_prclose.add_argument("number", nargs="?", type=int,
+                                    help="default: the open PR for the current branch")
+        parser_prclose.add_argument("-R", "--remote", help=pr_remote_help)
+        parser_prclose.add_argument("-m", "--message", help="comment to post before closing")
+        parser_prclose.set_defaults(func="pr_close")
 
     if supports("pr_wait"):
         parser_prwait = subparsers.add_parser(
