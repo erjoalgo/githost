@@ -132,6 +132,19 @@ class RejectedTokenTest(unittest.TestCase):
         self.assertEqual(len(sent), 2)
         self.assertEqual(contents, "machine api.github.com login alice password old-tok\n")
 
+    def test_typed_token_does_not_touch_authinfo(self):
+        service = githost.Github(githost.Auth(user="alice", passwd="typed-tok", authinfo="/x"))
+        resp = requests.Response()
+        resp.status_code = 401
+        with mock.patch("requests.Session.send", return_value=resp), \
+             mock.patch("sys.stdin.isatty", return_value=True), \
+             mock.patch("builtins.input", return_value="0"), \
+             mock.patch.object(service, "remove_authinfo") as remove, \
+             mock.patch("sys.stdout", new_callable=io.StringIO):
+            self.assertTrue(service.offer_new_token())
+        remove.assert_not_called()
+        self.assertIsNone(service.auth.passwd)
+
     def test_working_token_is_not_replaced(self):
         sent, contents = self.send(isatty=True, token_works=True)
         self.assertEqual(len(sent), 2)
@@ -163,9 +176,9 @@ class RemoveAuthinfoTest(unittest.TestCase):
                         "machine localhost login claude password c-tok\n", "claude", "c-tok"),
             "machine localhost login ealfonso password e-tok\n")
 
-    def test_login_without_a_line_is_left_alone(self):
-        contents = "machine localhost login ealfonso password e-tok\n"
-        self.assertEqual(self.remove(contents, "claude", "typed-tok"), contents)
+    def test_login_without_a_line_exits(self):
+        with self.assertRaises(SystemExit):
+            self.remove("machine localhost login ealfonso password e-tok\n", "claude", "c-tok")
 
     def test_several_lines_for_the_login_exit(self):
         with self.assertRaises(SystemExit):
