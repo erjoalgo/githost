@@ -97,8 +97,6 @@ class Auth:
     user: Optional[str]
     passwd: Optional[str]
     authinfo: Optional[str]
-    # whether passwd is the one on the user's line in authinfo
-    passwd_in_authinfo: bool = False
 
 
 @dataclass(order=True)
@@ -142,7 +140,6 @@ class Service:
                 if m:
                     auth.user = m.group(1)
                     auth.passwd = m.group(2)
-                    auth.passwd_in_authinfo = True
                     print(f"found {machine} password in {authinfo}")
                     return auth
         return None
@@ -182,7 +179,6 @@ class Service:
             if read_choice(["yes", "no"],
                            prompt=f"write to {authinfo}? ") == "yes":
                 self.write_authinfo(authinfo)
-                self.auth.passwd_in_authinfo = True
             self.auth.passwd = passwd
         assert self.auth.passwd is not None
         return self.auth.passwd
@@ -202,23 +198,25 @@ class Service:
         print(f"{self.display_name} rejected the token for {self.user()} at {self.api_host()}")
         if read_choice(["yes", "no"], prompt="enter a new token? ") != "yes":
             return False
-        if self.auth.passwd_in_authinfo:
-            self.remove_authinfo()
+        self.remove_authinfo()
         self.auth.passwd = None
-        self.auth.passwd_in_authinfo = False
         return True
 
     def remove_authinfo(self) -> None:
-        """Drop this login's token line from the user's authinfo."""
+        """Drop this login's token line from the user's authinfo, if any."""
         authinfo = self.auth.authinfo
-        assert authinfo
+        if not authinfo or not os.path.exists(authinfo):
+            return
         prefix = f"machine {self.api_host()} login {self.user()} password "
         with open(authinfo, "r") as fh:
             lines = fh.read().splitlines()
         login_lines = [line for line in lines if line.startswith(prefix)]
-        if len(login_lines) != 1:
-            sys.exit(f"expected one line for login {self.user()} at {self.api_host()} "
-                     f"in {authinfo}, found {len(login_lines)}; fix it by hand")
+        if not login_lines:
+            # the token was typed in, not read from authinfo
+            return
+        if len(login_lines) > 1:
+            sys.exit(f"{len(login_lines)} lines for login {self.user()} at {self.api_host()} "
+                     f"in {authinfo}; remove the rejected one by hand")
         if login_lines[0] != prefix + str(self.auth.passwd):
             sys.exit(f"the line for login {self.user()} at {self.api_host()} in {authinfo} "
                      "no longer holds the rejected token; check it by hand")
