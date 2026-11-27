@@ -189,6 +189,12 @@ class Service:
         Returns whether the user accepted."""
         if not sys.stdin.isatty():
             return False
+        # a 401 on a request the token can't do, rather than a dead token, would leave
+        # the token working for the authenticated user's endpoint
+        check = requests.Request("GET", self.base + "/user")
+        self.req_auth(check)
+        if requests.Session().send(check.prepare()).status_code != 401:
+            return False
         print(f"{self.display_name} rejected the token for {self.user()} at {self.api_host()}")
         if read_choice(["yes", "no"], prompt="enter a new token? ") != "yes":
             return False
