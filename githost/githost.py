@@ -213,6 +213,8 @@ class Service:
         login_lines = [line for line in lines if line.startswith(prefix)]
         if not login_lines:
             # the token was typed in, not read from authinfo
+            logger.warning("no line for login %s at %s in %s to remove",
+                           self.user(), self.api_host(), authinfo)
             return
         if len(login_lines) > 1:
             sys.exit(f"{len(login_lines)} lines for login {self.user()} at {self.api_host()} "

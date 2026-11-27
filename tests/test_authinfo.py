@@ -165,7 +165,8 @@ class RemoveAuthinfoTest(unittest.TestCase):
 
     def test_login_without_a_line_is_left_alone(self):
         contents = "machine localhost login ealfonso password e-tok\n"
-        self.assertEqual(self.remove(contents, "claude", "typed-tok"), contents)
+        with self.assertLogs(githost.logger, "WARNING"):
+            self.assertEqual(self.remove(contents, "claude", "typed-tok"), contents)
 
     def test_several_lines_for_the_login_exit(self):
         with self.assertRaises(SystemExit):
