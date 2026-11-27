@@ -156,8 +156,17 @@ class Service:
         user, passwd=self.user(), self.password()
         assert authinfo
         machine = self.api_host()
-        with open(authinfo, "a") as fh:
-            print(f"machine {machine} login {user} password {passwd}", file = fh)
+        prefix = f"machine {machine} login {user} password "
+        lines = []
+        if os.path.exists(authinfo):
+            with open(authinfo, "r") as fh:
+                lines = fh.read().splitlines()
+        if any(line.startswith(prefix) for line in lines):
+            lines = [prefix + passwd if line.startswith(prefix) else line for line in lines]
+        else:
+            lines.append(prefix + passwd)
+        with open(authinfo, "w") as fh:
+            fh.write("\n".join(lines) + "\n")
 
     def user(self, prompt: str = "enter username: ") -> str:
         """Read or prompt for the service username."""
