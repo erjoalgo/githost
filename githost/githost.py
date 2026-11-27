@@ -115,7 +115,6 @@ class Service:
     alias: str
     display_name: str
     base: str
-    token_rejected = False
 
     def __init__(self, auth: Auth) -> None:
         self.auth = auth
@@ -178,7 +177,7 @@ class Service:
 
     def password(self, prompt: str = "enter password: ") -> str:
         """Read or prompt for the service password or token."""
-        if not self.auth.passwd and (self.token_rejected or not self.read_authinfo()):
+        if not self.auth.passwd and not self.read_authinfo():
             if not sys.stdin.isatty():
                 login = f"login {self.auth.user}" if self.auth.user else "a login"
                 sys.exit(f"no token for {login} at {self.api_host()} in "
@@ -202,10 +201,20 @@ class Service:
         print(f"{self.display_name} rejected the token for {self.user()} at {self.api_host()}")
         if read_choice(["yes", "no"], prompt="enter a new token? ") != "yes":
             return False
+        self.remove_authinfo()
         self.auth.passwd = None
-        # keeps password() from reading the rejected token back from authinfo
-        self.token_rejected = True
         return True
+
+    def remove_authinfo(self) -> None:
+        """Drop this login's token line from the user's authinfo, if any."""
+        authinfo = self.auth.authinfo
+        if not authinfo or not os.path.exists(authinfo):
+            return
+        prefix = f"machine {self.api_host()} login {self.user()} password "
+        with open(authinfo, "r") as fh:
+            lines = fh.read().splitlines()
+        with open(authinfo, "w") as fh:
+            fh.writelines(line + "\n" for line in lines if not line.startswith(prefix))
 
     def req_auth(self, req: requests.Request, prompt: Optional[str] = None) -> None:
         """Fill in the request's authentication details."""
