@@ -115,6 +115,9 @@ class Service:
     alias: str
     display_name: str
     base: str
+    # an endpoint under base that any valid token can read, to tell a dead token apart
+    # from one lacking permission for a particular request
+    token_test_path = "/user"
 
     def __init__(self, auth: Auth) -> None:
         self.auth = auth
@@ -189,9 +192,7 @@ class Service:
         Returns whether it was forgotten, so the next req_auth prompts for a new one."""
         if not sys.stdin.isatty():
             return False
-        # a 401 on a request the token can't do, rather than a dead token, would leave
-        # the token working for the authenticated user's endpoint
-        check = requests.Request("GET", self.base + "/user")
+        check = requests.Request("GET", self.base + self.token_test_path)
         self.req_auth(check)
         if requests.Session().send(check.prepare()).status_code != 401:
             return False
