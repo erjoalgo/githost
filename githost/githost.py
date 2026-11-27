@@ -196,7 +196,7 @@ class Service:
         if requests.Session().send(check.prepare()).status_code != 401:
             return False
         print(f"{self.display_name} rejected the token for {self.user()} at {self.api_host()}")
-        if read_choice(["yes", "no"], prompt="enter a new token? ") != "yes":
+        if read_choice(["yes", "no"], prompt="clear the likely expired token? ") != "yes":
             return False
         self.remove_authinfo()
         self.auth.passwd = None
