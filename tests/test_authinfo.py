@@ -129,5 +129,40 @@ class RejectedTokenTest(unittest.TestCase):
         self.assertEqual(len(sent), 1)
 
 
+class RemoveAuthinfoTest(unittest.TestCase):
+    """Check only the rejected login's line is removed, and only when it's unambiguous."""
+
+    def remove(self, contents, user, passwd):
+        """Remove user's rejected token passwd at localhost; return the authinfo contents."""
+        tmpdir = tempfile.TemporaryDirectory()
+        self.addCleanup(tmpdir.cleanup)
+        authinfo = os.path.join(tmpdir.name, "authinfo")
+        with open(authinfo, "w") as fh:
+            fh.write(contents)
+        service = githost.Forgejo(githost.Auth(user=user, passwd=passwd, authinfo=authinfo))
+        service.remove_authinfo()
+        with open(authinfo) as fh:
+            return fh.read()
+
+    def test_keeps_other_logins_on_the_host(self):
+        self.assertEqual(
+            self.remove("machine localhost login ealfonso password e-tok\n"
+                        "machine localhost login claude password c-tok\n", "claude", "c-tok"),
+            "machine localhost login ealfonso password e-tok\n")
+
+    def test_login_without_a_line_is_left_alone(self):
+        contents = "machine localhost login ealfonso password e-tok\n"
+        self.assertEqual(self.remove(contents, "claude", "typed-tok"), contents)
+
+    def test_several_lines_for_the_login_exit(self):
+        with self.assertRaises(SystemExit):
+            self.remove("machine localhost login claude password c-tok\n"
+                        "machine localhost login claude password other-tok\n", "claude", "c-tok")
+
+    def test_line_with_another_token_exits(self):
+        with self.assertRaises(SystemExit):
+            self.remove("machine localhost login claude password other-tok\n", "claude", "c-tok")
+
+
 if __name__ == "__main__":
     unittest.main()

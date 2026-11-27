@@ -204,6 +204,16 @@ class Service:
         prefix = f"machine {self.api_host()} login {self.user()} password "
         with open(authinfo, "r") as fh:
             lines = fh.read().splitlines()
+        login_lines = [line for line in lines if line.startswith(prefix)]
+        if not login_lines:
+            # the token was typed in, not read from authinfo
+            return
+        if len(login_lines) > 1:
+            sys.exit(f"{len(login_lines)} lines for login {self.user()} at {self.api_host()} "
+                     f"in {authinfo}; remove the rejected one by hand")
+        if login_lines[0] != prefix + str(self.auth.passwd):
+            sys.exit(f"the line for login {self.user()} at {self.api_host()} in {authinfo} "
+                     "no longer holds the rejected token; check it by hand")
         with open(authinfo, "w") as fh:
             fh.writelines(line + "\n" for line in lines if not line.startswith(prefix))
 
