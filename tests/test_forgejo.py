@@ -384,6 +384,30 @@ A few things.
         edit.assert_called_once_with("Old.")
         self.assertEqual(json.loads(self.sent()[-1].body), {"body": "Edited."})
 
+    def test_pr_close_comments_then_closes(self, check_output):
+        del check_output
+        self.send.side_effect = [
+            fake_response({"html_url": "http://x/pulls/7#issuecomment-1"}),
+            fake_response({"html_url": "http://x/pulls/7"})]
+        with mock.patch("sys.stdout", new_callable=io.StringIO) as out:
+            self.service.pr_close(number=7, message="Superseded by #8.")
+        comment, patch = self.sent()
+        self.assertEqual((comment.method, comment.url),
+                         ("POST", f"{API}/repos/alice/proj/issues/7/comments"))
+        self.assertEqual(json.loads(comment.body), {"body": "Superseded by #8."})
+        self.assertEqual((patch.method, patch.url),
+                         ("PATCH", f"{API}/repos/alice/proj/pulls/7"))
+        self.assertEqual(json.loads(patch.body), {"state": "closed"})
+        self.assertEqual(out.getvalue(), "http://x/pulls/7\n")
+
+    def test_pr_close_without_message_only_closes(self, check_output):
+        del check_output
+        self.send.return_value = fake_response({"html_url": "http://x/pulls/7"})
+        with mock.patch("sys.stdout", new_callable=io.StringIO):
+            self.service.pr_close(number=7)
+        patch, = self.sent()
+        self.assertEqual(json.loads(patch.body), {"state": "closed"})
+
     @mock.patch("time.sleep")
     def test_pr_wait_returns_on_feedback_newer_than_our_last_comment(self, sleep, check_output):
         del check_output
