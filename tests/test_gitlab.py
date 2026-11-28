@@ -160,12 +160,14 @@ class GitlabProjectTest(unittest.TestCase):
         self.git_outputs["remote get-url origin"] = "https://github.com/me/proj"
         with self.assertRaises(githost.GithostError) as ctx:
             self.service.project_id()
-        self.assertIn("remote origin is on github.com, not gitlab.com", str(ctx.exception))
+        self.assertIn("remote origin is on github.com, not gitlab.com",
+                      str(ctx.exception))
         self.send.assert_not_called()
 
     def test_project_id_self_hosted(self):
         self.service.base = "https://gitlab.example.com/api/v4"
-        self.git_outputs["remote get-url origin"] = "git@gitlab.example.com:grp/proj.git"
+        self.git_outputs["remote get-url origin"] = (
+            "git@gitlab.example.com:grp/proj.git")
         self.assertEqual(self.service.project_id(), "grp%2Fproj")
 
     def test_get_all_follows_pages(self):
@@ -198,14 +200,16 @@ class GitlabProjectTest(unittest.TestCase):
                     "web_url": f"https://gitlab.com/{path}/-/tree/{name}"}
         mrs = "/merge_requests?state={}&scope=created_by_me&per_page=100&page=1"
         responses = {
-            mrs.format("opened"): [mr(1, "grp/one", 7, "open-mr", "Add feat", draft=True)],
+            mrs.format("opened"): [mr(1, "grp/one", 7, "open-mr", "Add feat",
+                                      draft=True)],
             mrs.format("merged"): [mr(1, "grp/one", 5, "merged-mr", "Fix bug")],
             "/events?action=pushed&per_page=100&page=1": [
                 push(1, "feat"), push(1, "open-mr"), push(1, "merged-mr"),
                 push(1, "deleted"), push(1, "main"), push(1, "v1.0", ref_type="tag"),
                 push(2, "no-access"), push(1, "feat"), push(3, "me/wip")],
             "/projects/1": {"path_with_namespace": "grp/one", "default_branch": "main"},
-            "/projects/3": {"path_with_namespace": "grp/three", "default_branch": "main"},
+            "/projects/3": {"path_with_namespace": "grp/three",
+                            "default_branch": "main"},
             "/projects/1/repository/branches/feat": branch("grp/one", "feat"),
             "/projects/1/repository/branches/open-mr": branch("grp/one", "open-mr"),
             "/projects/1/repository/branches/merged-mr": branch("grp/one", "merged-mr"),

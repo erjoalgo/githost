@@ -20,7 +20,8 @@ import urllib.parse
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Tuple, Type, overload
+from typing import (TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Tuple, Type,
+                    overload)
 
 import requests
 
@@ -116,7 +117,8 @@ class PrEvent:
 
 
 class Service:
-    """Base class holding the common implementation for interacting with a git-hosting service."""
+    """Base class holding the common implementation for interacting with a git-hosting
+    service."""
     name: str
     alias: str
     display_name: str
@@ -248,14 +250,17 @@ class Service:
         req.auth = (self.user(), self.password(**kwargs))
 
     @overload
-    def req_send(self, req: requests.Request, add_auth: bool = ..., print_json: bool = ...,
+    def req_send(self, req: requests.Request, add_auth: bool = ...,
+                 print_json: bool = ...,
                  missing_ok: Literal[False] = ...) -> requests.Response: ...
 
     @overload
-    def req_send(self, req: requests.Request, add_auth: bool = ..., print_json: bool = ...,
+    def req_send(self, req: requests.Request, add_auth: bool = ...,
+                 print_json: bool = ...,
                  *, missing_ok: bool) -> Optional[requests.Response]: ...
 
-    def req_send(self, req: requests.Request, add_auth: bool = True, print_json: bool = True,
+    def req_send(self, req: requests.Request, add_auth: bool = True,
+                 print_json: bool = True,
                  missing_ok: bool = False) -> Optional[requests.Response]:
         """Send the request after filling in auth details and parses the response.
 
@@ -264,7 +269,8 @@ class Service:
             req.url = self.base + req.url
         if add_auth:
             self.req_auth(req)
-        logger.debug("%s %s:\n%s\n%s\n%s", req.method, req.url, req.json, req.data, req.params)
+        logger.debug("%s %s:\n%s\n%s\n%s", req.method, req.url, req.json, req.data,
+                     req.params)
         resp = requests.Session().send(req.prepare())
         if resp.status_code == 401 and add_auth and self.forget_rejected_token():
             self.req_auth(req)
@@ -290,7 +296,8 @@ class Service:
         account's token (e.g. a restricted agent's); the token is passed
         through the environment, not argv."""
         helper = f"!f() {{ echo username={self.user()}; echo password=$GFJ_TOKEN; }}; f"
-        subprocess.run(["git", "-c", "credential.helper=", "-c", f"credential.helper={helper}",
+        subprocess.run(["git", "-c", "credential.helper=",
+                        "-c", f"credential.helper={helper}",
                         "push", remote, branch],
                        env=dict(os.environ, GFJ_TOKEN=self.password()), check=True)
 
@@ -340,8 +347,8 @@ SHA256:br9IjFspm1vxR3iA35FWE+4VTyz1hYVLIE2t1/CeyWQ (DSA)
         req = requests.Request("POST", url, json=data)
         self.req_send(req)
 
-    def repo_create(self, repo_name: str, description: Optional[str], private: bool = True,
-                    **kwargs: Any) -> None:
+    def repo_create(self, repo_name: str, description: Optional[str],
+                    private: bool = True, **kwargs: Any) -> None:
         """Create a github repo with the given name and description."""
         del kwargs
         self.ensure_on_git_repo_directory()
@@ -382,7 +389,8 @@ class Bitbucket(Service):
     base = "https://api.bitbucket.org/2.0"
     # base = "http://localhost:1231"
 
-    def post_key(self, pubkey_path: str, pubkey_label: str, key_type: Optional[str] = None,
+    def post_key(self, pubkey_path: str, pubkey_label: str,
+                 key_type: Optional[str] = None,
                  repo_name: Optional[str] = None, **kwargs: Any) -> None:
         """Post the public ssh key to github."""
         del kwargs
@@ -416,8 +424,8 @@ class Bitbucket(Service):
         req = requests.Request("GET", url)
         self.req_send(req)
 
-    def repo_create(self, repo_name: str, description: Optional[str], private: bool = True,
-                    **kwargs: Any) -> None:
+    def repo_create(self, repo_name: str, description: Optional[str],
+                    private: bool = True, **kwargs: Any) -> None:
         """Create the given repo on Bitbucket."""
         del kwargs
         repo_name = self.repo_name()
@@ -471,8 +479,8 @@ class Gitlab(Service):
         req = requests.Request("GET", "/projects", params={"owned": "true"})
         self.req_send(req)
 
-    def repo_create(self, repo_name: str, description: Optional[str], private: bool = True,
-                    **kwargs: Any) -> None:
+    def repo_create(self, repo_name: str, description: Optional[str],
+                    private: bool = True, **kwargs: Any) -> None:
         """Create a gitlab project with the given name and description."""
         del kwargs
         Github.ensure_on_git_repo_directory()
@@ -548,14 +556,16 @@ class Gitlab(Service):
             if not project or ref == project["default_branch"]:
                 continue
             quoted_ref = urllib.parse.quote(ref, safe="")
-            branch = self.get(f"/projects/{project_id}/repository/branches/{quoted_ref}")
+            branch = self.get(
+                f"/projects/{project_id}/repository/branches/{quoted_ref}")
             if not branch:
                 continue
             commit = branch["commit"]
             print(f"null\t-\t{commit['committed_date'][:10]}\t{branch['web_url']}"
                   f"\t{ref}\t{commit['title']}")
 
-    def mr_create(self, remote: Optional[str] = None, source_branch: Optional[str] = None,
+    def mr_create(self, remote: Optional[str] = None,
+                  source_branch: Optional[str] = None,
                   target_branch: Optional[str] = None, title: Optional[str] = None,
                   description: Optional[str] = None, **kwargs: Any) -> None:
         """Open a merge request for an already-pushed branch.
@@ -567,7 +577,8 @@ class Gitlab(Service):
         source_branch = source_branch or git("rev-parse", "--abbrev-ref", "HEAD")
         if not target_branch:
             req = requests.Request("GET", f"/projects/{project}")
-            target_branch = self.req_send(req, print_json=False).json()["default_branch"]
+            target_branch = self.req_send(
+                req, print_json=False).json()["default_branch"]
         if not title:
             message = interactive_edit(git("log", "-1", "--format=%B", source_branch))
             title, _, body = message.strip().partition("\n")
@@ -592,12 +603,14 @@ class Forgejo(Service):
 
     def web_url(self) -> str:
         """Returns the instance's web root, e.g. http://localhost:3123."""
-        return self.base[:-len("/api/v1")] if self.base.endswith("/api/v1") else self.base
+        return (self.base[:-len("/api/v1")] if self.base.endswith("/api/v1")
+                else self.base)
 
     def req_auth(self, req: requests.Request, prompt: Optional[str] = None) -> None:
         super().req_auth(
             req,
-            prompt=f"enter forgejo token ({self.web_url()}/user/settings/applications): ")
+            prompt=("enter forgejo token "
+                    f"({self.web_url()}/user/settings/applications): "))
         req.auth = None
         req.headers["Authorization"] = f"token {self.auth.passwd}"
 
@@ -632,8 +645,8 @@ class Forgejo(Service):
         del kwargs
         print(json.dumps(self.get_all("/user/repos"), indent=4))
 
-    def repo_create(self, repo_name: str, description: Optional[str], private: bool = True,
-                    **kwargs: Any) -> None:
+    def repo_create(self, repo_name: str, description: Optional[str],
+                    private: bool = True, **kwargs: Any) -> None:
         """Create a forgejo repo and add it as the "forgejo" git remote."""
         del kwargs
         Github.ensure_on_git_repo_directory()
@@ -648,7 +661,8 @@ class Forgejo(Service):
 
     def collaborator_add(self, users: List[str], remote: Optional[str] = None,
                          permission: str = "write", **kwargs: Any) -> None:
-        """Add users as collaborators, or change their permission if they already are."""
+        """Add users as collaborators, or change their permission if they already
+        are."""
         del kwargs
         repo = self.repo_path(remote)
         for user in users:
@@ -682,8 +696,8 @@ class Forgejo(Service):
         print(f"{branch}: only {me} can push or merge")
 
     def repo_publish(self, repo_name: str, description: Optional[str] = None,
-                     collaborator: Optional[List[str]] = None, branch: Optional[str] = None,
-                     **kwargs: Any) -> None:
+                     collaborator: Optional[List[str]] = None,
+                     branch: Optional[str] = None, **kwargs: Any) -> None:
         """Create the repo, add collaborators, push a branch as you, and protect it.
 
         Safe to re-run: an existing forgejo remote skips the create step, and
@@ -717,14 +731,16 @@ class Forgejo(Service):
         """List the current repo's pull requests, most recently updated first."""
         del kwargs
         repo = self.repo_path(remote)
-        prs = self.get_all(f"/repos/{repo}/pulls", {"state": state, "sort": "recentupdate"})
+        prs = self.get_all(f"/repos/{repo}/pulls",
+                           {"state": state, "sort": "recentupdate"})
         for pr in prs:
             pr_state = "merged" if pr.get("merged") else pr["state"]
             draft = "[draft] " if pr.get("draft") else ""
-            print(f"#{pr['number']}\t{pr_state}\t{pr['updated_at'][:10]}\t{pr['html_url']}"
-                  f"\t{pr['head']['ref']}\t{draft}{pr['title']}")
+            print(f"#{pr['number']}\t{pr_state}\t{pr['updated_at'][:10]}"
+                  f"\t{pr['html_url']}\t{pr['head']['ref']}\t{draft}{pr['title']}")
 
-    def pr_create(self, remote: Optional[str] = None, source_branch: Optional[str] = None,
+    def pr_create(self, remote: Optional[str] = None,
+                  source_branch: Optional[str] = None,
                   target_branch: Optional[str] = None, title: Optional[str] = None,
                   description: Optional[str] = None, **kwargs: Any) -> None:
         """Open a pull request for an already-pushed branch.
@@ -762,7 +778,8 @@ class Forgejo(Service):
         matches = [pr for pr in self.get_all(f"/repos/{repo}/pulls", {"state": "open"})
                    if pr["head"]["sha"] == commit
                    or (pr["head"]["ref"] == branch
-                       and (pr["head"].get("repo") or {}).get("full_name", repo) == repo)]
+                       and (pr["head"].get("repo") or {}).get("full_name", repo)
+                       == repo)]
         if len(matches) == 1:
             return int(matches[0]["number"])
         if matches:
@@ -815,7 +832,8 @@ class Forgejo(Service):
                     notes.append("outdated")
                 note = f" ({', '.join(notes)})" if notes else ""
                 hunk = "\n".join(comment.get("diff_hunk", "").splitlines()[-4:])
-                print(f"\n  > comment {comment['id']} on {comment['path']}:{line}{note}")
+                print(f"\n  > comment {comment['id']} on "
+                      f"{comment['path']}:{line}{note}")
                 if hunk:
                     print("    " + hunk.replace("\n", "\n    "))
                 print("  " + comment["body"].replace("\n", "\n  "))
@@ -826,11 +844,13 @@ class Forgejo(Service):
 
         The time is the latest of creation and last edit, so edits count as activity."""
         def when(item: Any, *keys: str) -> datetime:
-            return max(datetime.fromisoformat(item[key]) for key in keys if item.get(key))
+            return max(datetime.fromisoformat(item[key])
+                       for key in keys if item.get(key))
         activity = []
         for comment in comments:
             activity.append(PrEvent(when(comment, "created_at", "updated_at"),
-                                    comment["user"]["login"], f"comment:{comment['id']}"))
+                                    comment["user"]["login"],
+                                    f"comment:{comment['id']}"))
         for review in reviews:
             if review["state"] == "PENDING":
                 continue
@@ -855,7 +875,8 @@ class Forgejo(Service):
             if review["state"] != "PENDING" and review.get("comments_count"):
                 theirs += [comment for comment in self.get(
                     f"/repos/{repo}/pulls/{number}/reviews/{review['id']}/comments")
-                           if comment["user"]["login"] != me and not comment.get("resolver")]
+                           if comment["user"]["login"] != me
+                           and not comment.get("resolver")]
         lines = []
         for comment in theirs:
             if comment["id"] in replied:
@@ -868,8 +889,10 @@ class Forgejo(Service):
         return lines
 
     def pr_wait(self, remote: Optional[str] = None, number: Optional[int] = None,
-                interval: float = 30, since: Optional[str] = None, **kwargs: Any) -> None:
-        """Block until a PR gets feedback after a given event, or after our own last one.
+                interval: float = 30, since: Optional[str] = None,
+                **kwargs: Any) -> None:
+        """Block until a PR gets feedback after a given event, or after our own last
+        one.
 
         Feedback is a comment or submitted review by anyone but the token's
         user. By default it must come after our latest comment or review, or
@@ -879,8 +902,8 @@ class Forgejo(Service):
         reply), or "none" for any feedback. Also returns when the PR is
         closed or merged, or while any comment by others is unreplied (see
         pr_unreplied), however old, so comments that arrive while we answer
-        others aren't lost behind our replies. Network errors are retried every interval, so a
-        restart of the server doesn't end the wait."""
+        others aren't lost behind our replies. Network errors are retried every
+        interval, so a restart of the server doesn't end the wait."""
         del kwargs
         repo = self.repo_path(remote)
         number = self.pr_number(repo, number)
@@ -892,7 +915,8 @@ class Forgejo(Service):
             try:
                 pr = self.get(f"/repos/{repo}/pulls/{number}")
                 if pr["state"] != "open":
-                    print(f"#{number} is {'merged' if pr.get('merged') else pr['state']}")
+                    print(f"#{number} is "
+                          f"{'merged' if pr.get('merged') else pr['state']}")
                     return
                 comments = self.get_all(f"/repos/{repo}/issues/{number}/comments")
                 reviews = self.get_all(f"/repos/{repo}/pulls/{number}/reviews")
@@ -913,7 +937,8 @@ class Forgejo(Service):
                             "review:ID as shown by show-pr, or none")
                     since_time = times[0]
                 else:
-                    since_time = max((item.time for item in activity if item.author == me),
+                    since_time = max((item.time for item in activity
+                                      if item.author == me),
                                      default=no_cutoff)
             feedback = sorted(item for item in activity
                               if item.author != me and item.time > since_time)
@@ -924,7 +949,8 @@ class Forgejo(Service):
                 for line in unreplied:
                     print(line)
                 if feedback:
-                    print(f"to wait for more: wait-pr {number} --since {feedback[-1].event}")
+                    print(f"to wait for more: wait-pr {number} "
+                          f"--since {feedback[-1].event}")
                 return
             time.sleep(interval)
 
@@ -994,23 +1020,28 @@ class Forgejo(Service):
             data["body"] = description
         elif append_description:
             body = (self.get(url).get("body") or "").rstrip()
-            data["body"] = f"{body}\n\n{append_description}" if body else append_description
+            data["body"] = (f"{body}\n\n{append_description}" if body
+                            else append_description)
         elif not data:
             data["body"] = interactive_edit(self.get(url).get("body") or "").strip()
-        resp = self.req_send(requests.Request("PATCH", url, json=data), print_json=False)
+        resp = self.req_send(requests.Request("PATCH", url, json=data),
+                             print_json=False)
         print(resp.json()["html_url"])
 
     def pr_close(self, remote: Optional[str] = None, number: Optional[int] = None,
                  message: Optional[str] = None, **kwargs: Any) -> None:
-        """Close a pull request without merging it, first commenting message if given."""
+        """Close a pull request without merging it, first commenting message if
+        given."""
         del kwargs
         repo = self.repo_path(remote)
         number = self.pr_number(repo, number)
         if message:
-            self.req_send(requests.Request("POST", f"/repos/{repo}/issues/{number}/comments",
+            self.req_send(requests.Request("POST",
+                                           f"/repos/{repo}/issues/{number}/comments",
                                            json={"body": message}), print_json=False)
         resp = self.req_send(requests.Request("PATCH", f"/repos/{repo}/pulls/{number}",
-                                              json={"state": "closed"}), print_json=False)
+                                              json={"state": "closed"}),
+                             print_json=False)
         print(resp.json()["html_url"])
 
 SERVICES: Dict[str, Type[Service]] = {
@@ -1018,7 +1049,8 @@ SERVICES: Dict[str, Type[Service]] = {
     for service in [Github, Bitbucket, Gitlab, Forgejo]
     for name in (service.name, service.alias)}
 
-def main(argv: Optional[List[str]] = None, service: Optional[Type[Service]] = None) -> int:
+def main(argv: Optional[List[str]] = None,
+         service: Optional[Type[Service]] = None) -> int:
     """Main function.
 
     With a service class, as for ggl, the service argument is implied and
@@ -1040,8 +1072,10 @@ def main(argv: Optional[List[str]] = None, service: Optional[Type[Service]] = No
     # help = "one of {}".format(" ".join(SERVICES.keys())))
     parser.add_argument("-a", "--authinfo", help=".authinfo or .netrc file path",
                         default=os.path.expanduser("~/.authinfo"))
-    parser.add_argument("-u", "--username", default=os.environ.get("GITHOST_USER") or None,
-                        help="user name for the selected service (default: $GITHOST_USER, "
+    parser.add_argument("-u", "--username",
+                        default=os.environ.get("GITHOST_USER") or None,
+                        help="user name for the selected service "
+                        "(default: $GITHOST_USER, "
                         "else the first authinfo line for the host)")
     parser.add_argument("-b", "--base-url",
                         help="API base url, e.g. https://gitlab.example.com/api/v4 "
@@ -1084,7 +1118,8 @@ def main(argv: Optional[List[str]] = None, service: Optional[Type[Service]] = No
     parser_repocreate = add_command("create-repo", deprecated=("repo-create",),
                                     help="create a new repository")
     parser_repocreate.add_argument("-d", "--description", help="repo description")
-    parser_repocreate.add_argument("-r", "--repo-name", default=os.path.basename(os.getcwd()),
+    parser_repocreate.add_argument("-r", "--repo-name",
+                                   default=os.path.basename(os.getcwd()),
                                    help="repository name")
     parser_repocreate.set_defaults(func="repo_create")
 
@@ -1103,16 +1138,19 @@ def main(argv: Optional[List[str]] = None, service: Optional[Type[Service]] = No
 
     if supports("branch_protect"):
         parser_protect = subparsers.add_parser(
-            "protect-branch", help="let only you push to or merge into a branch (forgejo)")
+            "protect-branch",
+            help="let only you push to or merge into a branch (forgejo)")
         parser_protect.add_argument("branch")
         parser_protect.add_argument("-R", "--remote", help=pr_remote_help)
         parser_protect.set_defaults(func="branch_protect")
 
     if supports("repo_publish"):
         parser_publish = subparsers.add_parser(
-            "publish-repo", help="create the current repo, add collaborators, push a branch "
+            "publish-repo",
+            help="create the current repo, add collaborators, push a branch "
             "and let only you push to or merge into it (forgejo)")
-        parser_publish.add_argument("-r", "--repo-name", default=os.path.basename(os.getcwd()),
+        parser_publish.add_argument("-r", "--repo-name",
+                                    default=os.path.basename(os.getcwd()),
                                     help="default: the current directory's name")
         parser_publish.add_argument("-d", "--description", help="repo description")
         parser_publish.add_argument("-c", "--collaborator", action="append",
@@ -1122,7 +1160,8 @@ def main(argv: Optional[List[str]] = None, service: Optional[Type[Service]] = No
 
     if supports("mr_list"):
         parser_mrlist = subparsers.add_parser(
-            "ls-mr", help="list your open and merged merge requests, and pushed branches "
+            "ls-mr",
+            help="list your open and merged merge requests, and pushed branches "
             "without one, across all projects (gitlab)")
         parser_mrlist.set_defaults(func="mr_list")
 
@@ -1130,11 +1169,14 @@ def main(argv: Optional[List[str]] = None, service: Optional[Type[Service]] = No
         parser_mrcreate = subparsers.add_parser(
             "create-mr", help="open a merge request for a pushed branch (gitlab)")
         parser_mrcreate.add_argument("-R", "--remote", help=remote_help)
-        parser_mrcreate.add_argument("-s", "--source-branch", help="default: current branch")
+        parser_mrcreate.add_argument("-s", "--source-branch",
+                                     help="default: current branch")
         parser_mrcreate.add_argument("-t", "--target-branch",
                                      help="default: project's default branch")
-        parser_mrcreate.add_argument("--title", help="default: edit the last commit message")
-        parser_mrcreate.add_argument("-d", "--description", help="merge request description")
+        parser_mrcreate.add_argument("--title",
+                                     help="default: edit the last commit message")
+        parser_mrcreate.add_argument("-d", "--description",
+                                     help="merge request description")
         parser_mrcreate.set_defaults(func="mr_create")
 
     if supports("pr_list"):
@@ -1149,16 +1191,20 @@ def main(argv: Optional[List[str]] = None, service: Optional[Type[Service]] = No
         parser_prcreate = subparsers.add_parser(
             "create-pr", help="open a pull request for a pushed branch (forgejo)")
         parser_prcreate.add_argument("-R", "--remote", help=pr_remote_help)
-        parser_prcreate.add_argument("-s", "--source-branch", help="default: current branch")
+        parser_prcreate.add_argument("-s", "--source-branch",
+                                     help="default: current branch")
         parser_prcreate.add_argument("-t", "--target-branch",
                                      help="default: repo's default branch")
-        parser_prcreate.add_argument("--title", help="default: edit the last commit message")
-        parser_prcreate.add_argument("-d", "--description", help="pull request description")
+        parser_prcreate.add_argument("--title",
+                                     help="default: edit the last commit message")
+        parser_prcreate.add_argument("-d", "--description",
+                                     help="pull request description")
         parser_prcreate.set_defaults(func="pr_create")
 
     if supports("pr_show"):
         parser_prshow = subparsers.add_parser(
-            "show-pr", help="show a pull request with its comments and reviews (forgejo)")
+            "show-pr",
+            help="show a pull request with its comments and reviews (forgejo)")
         parser_prshow.add_argument("number", nargs="?", type=int,
                                    help="default: the open PR for the current branch")
         parser_prshow.add_argument("-R", "--remote", help=pr_remote_help)
@@ -1167,17 +1213,20 @@ def main(argv: Optional[List[str]] = None, service: Optional[Type[Service]] = No
     if supports("pr_comment"):
         parser_prcomment = subparsers.add_parser(
             "comment-pr", help="comment on a pull request (forgejo)")
-        parser_prcomment.add_argument("number", nargs="?", type=int,
-                                      help="default: the open PR for the current branch")
+        parser_prcomment.add_argument(
+            "number", nargs="?", type=int,
+            help="default: the open PR for the current branch")
         parser_prcomment.add_argument("-R", "--remote", help=pr_remote_help)
         parser_prcomment.add_argument("-m", "--message", help="default: open an editor")
-        parser_prcomment.add_argument("-r", "--reply-to", type=int, metavar="COMMENT_ID",
+        parser_prcomment.add_argument("-r", "--reply-to", type=int,
+                                      metavar="COMMENT_ID",
                                       help="quote this comment (an id from show-pr)")
         parser_prcomment.set_defaults(func="pr_comment")
 
     if supports("pr_edit"):
         parser_predit = subparsers.add_parser(
-            "edit-pr", help="change a pull request's title, description or target (forgejo)")
+            "edit-pr",
+            help="change a pull request's title, description or target (forgejo)")
         parser_predit.add_argument("number", nargs="?", type=int,
                                    help="default: the open PR for the current branch")
         parser_predit.add_argument("-R", "--remote", help=pr_remote_help)
@@ -1195,7 +1244,8 @@ def main(argv: Optional[List[str]] = None, service: Optional[Type[Service]] = No
         parser_prclose.add_argument("number", nargs="?", type=int,
                                     help="default: the open PR for the current branch")
         parser_prclose.add_argument("-R", "--remote", help=pr_remote_help)
-        parser_prclose.add_argument("-m", "--message", help="comment to post before closing")
+        parser_prclose.add_argument("-m", "--message",
+                                    help="comment to post before closing")
         parser_prclose.set_defaults(func="pr_close")
 
     if supports("pr_wait"):
@@ -1207,8 +1257,9 @@ def main(argv: Optional[List[str]] = None, service: Optional[Type[Service]] = No
         parser_prwait.add_argument("-i", "--interval", type=float, default=30,
                                    help="seconds between checks (default: 30)")
         parser_prwait.add_argument("-s", "--since", metavar="EVENT",
-                                   help="only feedback after this comment:ID or review:ID, "
-                                   "or none for any (default: your last comment or review)")
+                                   help="only feedback after this comment:ID "
+                                   "or review:ID, or none for any "
+                                   "(default: your last comment or review)")
         parser_prwait.set_defaults(func="pr_wait")
 
     if not argv:

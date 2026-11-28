@@ -42,14 +42,16 @@ class ServiceCommandTest(unittest.TestCase):
     def username_used(self, argv, env):
         """Returns the username gfj ends up with for this argv and environment."""
         with mock.patch.dict(os.environ, env, clear=False), \
-             mock.patch.object(githost.Forgejo, "list_repos", autospec=True) as list_repos:
+             mock.patch.object(githost.Forgejo, "list_repos",
+                               autospec=True) as list_repos:
             if "GITHOST_USER" not in env:
                 os.environ.pop("GITHOST_USER", None)
             githost.main(argv, service=githost.Forgejo)
         return list_repos.call_args[0][0].auth.user
 
     def test_username_defaults_to_githost_user(self):
-        self.assertEqual(self.username_used(["ls-repo"], {"GITHOST_USER": "bob"}), "bob")
+        self.assertEqual(self.username_used(["ls-repo"], {"GITHOST_USER": "bob"}),
+                         "bob")
 
     def test_username_flag_overrides_githost_user(self):
         self.assertEqual(self.username_used(["-u", "alice", "ls-repo"],
@@ -85,7 +87,8 @@ class ServiceCommandTest(unittest.TestCase):
         self.assertNotIn("create-mr", github)
 
     def test_help_names_the_service(self):
-        for service, display_name in [(githost.Github, "GitHub"), (githost.Gitlab, "GitLab"),
+        for service, display_name in [(githost.Github, "GitHub"),
+                                      (githost.Gitlab, "GitLab"),
                                       (githost.Bitbucket, "Bitbucket")]:
             self.assertIn(f"A command-line interface to {display_name}.",
                           self.help_of(service))
@@ -138,7 +141,8 @@ class ServiceCommandTest(unittest.TestCase):
                          ["gbb", "gfj", "ggh", "ggl", "githost"])
         for target in scripts.values():
             module, _, attr = target.partition(":")
-            self.assertTrue(callable(getattr(importlib.import_module(module), attr)), target)
+            self.assertTrue(callable(getattr(importlib.import_module(module), attr)),
+                            target)
 
 
 if __name__ == "__main__":

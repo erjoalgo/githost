@@ -124,9 +124,11 @@ class ForgejoPullRequestTest(unittest.TestCase):
             self.service.pr_list(state="all")
         req, = self.sent()
         self.assertEqual(req.url,
-                         f"{API}/repos/alice/proj/pulls?state=all&sort=recentupdate&limit=50")
+                         f"{API}/repos/alice/proj/pulls"
+                         "?state=all&sort=recentupdate&limit=50")
         self.assertEqual(out.getvalue(),
-                         "#3\tmerged\t2026-11-17\thttp://x/pulls/3\tfeature\tAdd feature\n")
+                         "#3\tmerged\t2026-11-17\thttp://x/pulls/3"
+                         "\tfeature\tAdd feature\n")
 
     @mock.patch.object(githost, "interactive_edit", side_effect=lambda text: text)
     def test_pr_create_defaults(self, edit, check_output):
@@ -137,7 +139,8 @@ class ForgejoPullRequestTest(unittest.TestCase):
             self.service.pr_create()
         get, post = self.sent()
         self.assertEqual(get.url, f"{API}/repos/alice/proj")
-        self.assertEqual((post.method, post.url), ("POST", f"{API}/repos/alice/proj/pulls"))
+        self.assertEqual((post.method, post.url),
+                         ("POST", f"{API}/repos/alice/proj/pulls"))
         self.assertEqual(json.loads(post.body),
                          {"head": "feature", "base": "master",
                           "title": "Add feature", "body": "Because."})
@@ -225,7 +228,8 @@ class ForgejoPullRequestTest(unittest.TestCase):
         self.assertEqual(patch.method, "PATCH")
 
     @mock.patch("subprocess.run", return_value=mock.Mock(returncode=1))
-    def test_repo_publish_without_branch_exits_before_any_request(self, run, check_output):
+    def test_repo_publish_without_branch_exits_before_any_request(
+            self, run, check_output):
         del run, check_output
         with self.assertRaises(githost.GithostError):
             self.service.repo_publish("proj", branch="nope")
@@ -249,7 +253,8 @@ class ForgejoPullRequestTest(unittest.TestCase):
             fake_response({"title": "Add feature", "state": "open", "merged": False,
                            "html_url": "http://x/pulls/7", "body": "Why.",
                            "head": {"ref": "feature"}, "base": {"ref": "master"}}),
-            fake_response([{"id": 1, "user": user, "created_at": "t1", "body": "LGTM?"}]),
+            fake_response([{"id": 1, "user": user, "created_at": "t1",
+                            "body": "LGTM?"}]),
             fake_response([
                 {"id": 2, "user": user, "state": "REQUEST_CHANGES", "stale": False,
                  "submitted_at": "t2", "body": "A few things.", "comments_count": 2},
@@ -257,7 +262,8 @@ class ForgejoPullRequestTest(unittest.TestCase):
                  "submitted_at": "t3", "body": "", "comments_count": 0}]),
             fake_response([
                 {"id": 10, "path": "a.py", "position": 12, "original_position": 0,
-                 "diff_hunk": "@@ -1 +1 @@\n-x\n+y", "body": "rename y", "resolver": None},
+                 "diff_hunk": "@@ -1 +1 @@\n-x\n+y", "body": "rename y",
+                 "resolver": None},
                 {"id": 11, "path": "b.py", "position": 0, "original_position": 4,
                  "diff_hunk": "", "body": "old", "resolver": {"login": "alice"}}]),
         ]
@@ -340,7 +346,8 @@ A few things.
         self.assertEqual((post.method, post.url),
                          ("POST", f"{API}/repos/alice/proj/issues/7/comments"))
         self.assertEqual(json.loads(post.body)["body"],
-                         "Re: bob's comment 10 on `a.py:12`:\n> rename y\n> please\n\nDone.")
+                         "Re: bob's comment 10 on `a.py:12`:\n"
+                         "> rename y\n> please\n\nDone.")
         self.assertEqual(out.getvalue(), "http://x/pulls/7#issuecomment-11\n")
 
     def test_pr_comment_reply_to_unknown_comment_exits(self, check_output):
@@ -358,7 +365,8 @@ A few things.
         with mock.patch("sys.stdout", new_callable=io.StringIO) as out:
             self.service.pr_edit(number=7, append_description="Update: retargeted.")
         get, patch = self.sent()
-        self.assertEqual((get.method, get.url), ("GET", f"{API}/repos/alice/proj/pulls/7"))
+        self.assertEqual((get.method, get.url),
+                         ("GET", f"{API}/repos/alice/proj/pulls/7"))
         self.assertEqual((patch.method, patch.url),
                          ("PATCH", f"{API}/repos/alice/proj/pulls/7"))
         self.assertEqual(json.loads(patch.body),
@@ -409,15 +417,20 @@ A few things.
         self.assertEqual(json.loads(patch.body), {"state": "closed"})
 
     @mock.patch("time.sleep")
-    def test_pr_wait_returns_on_feedback_newer_than_our_last_comment(self, sleep, check_output):
+    def test_pr_wait_returns_on_feedback_newer_than_our_last_comment(
+            self, sleep, check_output):
         del check_output
         pr = {"state": "open", "created_at": "2026-01-01T00:00:00Z"}
-        ours = {"id": 5, "user": {"login": "alice"}, "body": "Re: bob's comment 4:\n> old\n\nDone.",
-                "created_at": "2026-01-02T00:00:00Z", "updated_at": "2026-01-02T00:00:00Z"}
+        ours = {"id": 5, "user": {"login": "alice"},
+                "body": "Re: bob's comment 4:\n> old\n\nDone.",
+                "created_at": "2026-01-02T00:00:00Z",
+                "updated_at": "2026-01-02T00:00:00Z"}
         old = {"id": 4, "user": {"login": "bob"}, "body": "old",
-               "created_at": "2026-01-01T12:00:00Z", "updated_at": "2026-01-01T12:00:00Z"}
+               "created_at": "2026-01-01T12:00:00Z",
+               "updated_at": "2026-01-01T12:00:00Z"}
         review = {"id": 9, "user": {"login": "bob"}, "state": "REQUEST_CHANGES",
-                  "submitted_at": "2026-01-03T00:00:00Z", "updated_at": "2026-01-03T00:00:00Z"}
+                  "submitted_at": "2026-01-03T00:00:00Z",
+                  "updated_at": "2026-01-03T00:00:00Z"}
         pending = dict(review, id=10, state="PENDING")
         self.send.side_effect = [
             fake_response({"login": "alice"}),
@@ -430,16 +443,19 @@ A few things.
             self.service.pr_wait(number=7, interval=5)
         sleep.assert_called_once_with(5)
         self.assertEqual(out.getvalue(),
-                         "#7: review:9 (REQUEST_CHANGES) by bob at 2026-01-03T00:00:00+00:00\n"
+                         "#7: review:9 (REQUEST_CHANGES) by bob "
+                         "at 2026-01-03T00:00:00+00:00\n"
                          "to wait for more: wait-pr 7 --since review:9\n")
 
     @mock.patch("time.sleep")
     def test_pr_wait_since_skips_older_feedback(self, sleep, check_output):
         del check_output
         approval = {"id": 9, "user": {"login": "bob"}, "state": "APPROVED",
-                    "submitted_at": "2026-01-03T00:00:00Z", "updated_at": "2026-01-03T00:00:00Z"}
+                    "submitted_at": "2026-01-03T00:00:00Z",
+                    "updated_at": "2026-01-03T00:00:00Z"}
         comment = {"id": 11, "user": {"login": "bob"}, "body": "nit",
-                   "created_at": "2026-01-04T00:00:00Z", "updated_at": "2026-01-04T00:00:00Z"}
+                   "created_at": "2026-01-04T00:00:00Z",
+                   "updated_at": "2026-01-04T00:00:00Z"}
         pr = {"state": "open", "created_at": "2026-01-01T00:00:00Z"}
         self.send.side_effect = [
             fake_response({"login": "alice"}),
@@ -458,10 +474,12 @@ A few things.
             self, sleep, check_output):
         del sleep, check_output
         old = {"id": 4, "user": {"login": "bob"}, "body": "old",
-               "created_at": "2026-01-01T12:00:00Z", "updated_at": "2026-01-01T12:00:00Z"}
+               "created_at": "2026-01-01T12:00:00Z",
+               "updated_at": "2026-01-01T12:00:00Z"}
         pr = {"state": "open", "created_at": "2026-01-02T00:00:00Z"}
         for since in ("none", None):
-            self.send.side_effect = [fake_response({"login": "alice"}), fake_response(pr),
+            self.send.side_effect = [fake_response({"login": "alice"}),
+                                     fake_response(pr),
                                      fake_response([old]), fake_response([])]
             with mock.patch("sys.stdout", new_callable=io.StringIO) as out:
                 self.service.pr_wait(number=7, since=since)
@@ -477,8 +495,10 @@ A few things.
         missed = comment(2, "bob", "and y", "2026-01-01T00:01:00Z")
         ours = comment(3, "alice", "Re: bob's comment 1:\n> rename x\n\nDone.",
                        "2026-01-01T00:02:00Z")
-        review = {"id": 9, "user": {"login": "bob"}, "state": "COMMENT", "comments_count": 2,
-                  "submitted_at": "2026-01-01T00:00:30Z", "updated_at": "2026-01-01T00:00:30Z"}
+        review = {"id": 9, "user": {"login": "bob"}, "state": "COMMENT",
+                  "comments_count": 2,
+                  "submitted_at": "2026-01-01T00:00:30Z",
+                  "updated_at": "2026-01-01T00:00:30Z"}
         inline = dict(comment(10, "bob", "typo", "2026-01-01T00:00:30Z"),
                       path="a.py", position=12)
         resolved = dict(comment(11, "bob", "style", "2026-01-01T00:00:30Z"),
@@ -502,7 +522,8 @@ A few things.
     def test_pr_wait_unknown_since_event_exits(self, check_output):
         del check_output
         self.send.side_effect = [fake_response({"login": "alice"}),
-                                 fake_response({"state": "open", "created_at": "2026-01-01T00:00:00Z"}),
+                                 fake_response({"state": "open",
+                                                "created_at": "2026-01-01T00:00:00Z"}),
                                  fake_response([]), fake_response([])]
         with self.assertRaises(githost.GithostError) as ctx:
             self.service.pr_wait(number=7, since="review:99")
