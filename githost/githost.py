@@ -115,9 +115,6 @@ class Service:
     alias: str
     display_name: str
     base: str
-    # an endpoint under base that any valid token can read, to tell a dead token apart
-    # from one lacking permission for a particular request
-    token_test_path = "/user"
 
     def __init__(self, auth: Auth) -> None:
         self.auth = auth
@@ -186,13 +183,20 @@ class Service:
         assert self.auth.passwd is not None
         return self.auth.passwd
 
+    def token_test_path(self) -> str:
+        """An endpoint under base that any valid token can read.
+
+        Tells a dead token apart from one lacking permission for a particular request.
+        All four services serve the authenticated user here."""
+        return "/user"
+
     def forget_rejected_token(self) -> bool:
         """After the service rejected the token, offer to forget it from memory and authinfo.
 
         Returns whether it was forgotten, so the next req_auth prompts for a new one."""
         if not sys.stdin.isatty():
             return False
-        check = requests.Request("GET", self.base + self.token_test_path)
+        check = requests.Request("GET", self.base + self.token_test_path())
         self.req_auth(check)
         if requests.Session().send(check.prepare()).status_code != 401:
             return False
