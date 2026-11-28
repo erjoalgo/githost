@@ -158,7 +158,7 @@ class GitlabProjectTest(unittest.TestCase):
 
     def test_project_id_rejects_remote_on_other_host(self):
         self.git_outputs["remote get-url origin"] = "https://github.com/me/proj"
-        with self.assertRaises(SystemExit) as ctx:
+        with self.assertRaises(githost.GithostError) as ctx:
             self.service.project_id()
         self.assertIn("remote origin is on github.com, not gitlab.com", str(ctx.exception))
         self.send.assert_not_called()

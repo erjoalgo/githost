@@ -35,6 +35,12 @@ try:
 except Exception:
     __version__ = f"unknown: {traceback.format_exc()}"
 
+class GithostError(Exception):
+    """A problem for the user to fix, such as a missing branch or an ambiguous PR.
+
+    main() prints its message and exits with status 1, without a traceback."""
+
+
 def interactive_edit(initial_contents: str) -> str:
     """Open an editor to interactively edit a text template."""
     tmp = os.path.expanduser("~/.githost.tmp")
@@ -76,7 +82,7 @@ def local_branch_or_default(name: Optional[str]) -> str:
     candidates = [name] if name else ["main", "master"]
     branch = next((c for c in candidates if local_branch_exists(c)), None)
     if not branch:
-        sys.exit(f"no local branch {' or '.join(candidates)}; pass --branch")
+        raise GithostError(f"no local branch {' or '.join(candidates)}; pass --branch")
     return branch
 
 def parse_remote_url(url: str) -> Tuple[Optional[str], str]:
@@ -171,8 +177,9 @@ class Service:
         if not self.auth.passwd and not self.read_authinfo():
             if not sys.stdin.isatty():
                 login = f"login {self.auth.user}" if self.auth.user else "a login"
-                sys.exit(f"no token for {login} at {self.api_host()} in "
-                         f"{self.auth.authinfo}, and no terminal to ask for one")
+                raise GithostError(
+                    f"no token for {login} at {self.api_host()} in "
+                    f"{self.auth.authinfo}, and no terminal to ask for one")
             self.auth.passwd = getpass.getpass(prompt)
             authinfo = self.auth.authinfo
             passwd = self.auth.passwd
@@ -224,13 +231,13 @@ class Service:
                            self.user(), self.api_host(), authinfo)
             return
         if len(login_lines) > 1:
-            sys.exit(f"{len(login_lines)} lines for login {self.user()} "
-                     f"at {self.api_host()} in {authinfo}; "
-                     "remove the rejected one by hand")
+            raise GithostError(
+                f"{len(login_lines)} lines for login {self.user()} "
+                f"at {self.api_host()} in {authinfo}; remove the rejected one by hand")
         if login_lines[0] != prefix + str(self.auth.passwd):
-            sys.exit(f"the line for login {self.user()} at {self.api_host()} "
-                     f"in {authinfo} no longer holds the rejected token; "
-                     "check it by hand")
+            raise GithostError(
+                f"the line for login {self.user()} at {self.api_host()} "
+                f"in {authinfo} no longer holds the rejected token; check it by hand")
         with open(authinfo, "w") as fh:
             fh.writelines(line + "\n" for line in lines if not line.startswith(prefix))
 
@@ -488,8 +495,9 @@ class Gitlab(Service):
             remote = "gitlab" if "gitlab" in git("remote").split() else "origin"
         host, path = parse_remote_url(git("remote", "get-url", remote))
         if host != self.api_host():
-            sys.exit(f"remote {remote} is on {host}, not {self.api_host()}: "
-                     "pick a gitlab remote with -R, or pass -b for a self-hosted gitlab")
+            raise GithostError(
+                f"remote {remote} is on {host}, not {self.api_host()}: "
+                "pick a gitlab remote with -R, or pass -b for a self-hosted gitlab")
         return urllib.parse.quote(path, safe="")
 
     def get_all(self, url: str, params: Optional[Dict[str, Any]] = None) -> List[Any]:
@@ -699,8 +707,9 @@ class Forgejo(Service):
             remote = "forgejo" if "forgejo" in git("remote").split() else "origin"
         host, path = parse_remote_url(git("remote", "get-url", remote))
         if host != self.api_host():
-            sys.exit(f"remote {remote} is on {host}, not {self.api_host()}: "
-                     "pick a forgejo remote with -R, or pass -b for another instance")
+            raise GithostError(
+                f"remote {remote} is on {host}, not {self.api_host()}: "
+                "pick a forgejo remote with -R, or pass -b for another instance")
         return path
 
     def pr_list(self, remote: Optional[str] = None, state: str = "open",
@@ -758,9 +767,11 @@ class Forgejo(Service):
             return int(matches[0]["number"])
         if matches:
             numbers = ", ".join(f"#{pr['number']}" for pr in matches)
-            sys.exit(f"several open pull requests match {branch} at {commit[:10]}: "
-                     f"{numbers}; pass the PR number")
-        sys.exit(f"no open pull request for {branch} at {commit[:10]}; pass the PR number")
+            raise GithostError(
+                f"several open pull requests match {branch} at {commit[:10]}: "
+                f"{numbers}; pass the PR number")
+        raise GithostError(
+            f"no open pull request for {branch} at {commit[:10]}; pass the PR number")
 
     def pr_show(self, remote: Optional[str] = None, number: Optional[int] = None,
                 **kwargs: Any) -> None:
@@ -897,8 +908,9 @@ class Forgejo(Service):
                 elif since:
                     times = [item.time for item in activity if item.event == since]
                     if not times:
-                        sys.exit(f"no event {since} on PR #{number}: expected comment:ID or "
-                                 "review:ID as shown by show-pr, or none")
+                        raise GithostError(
+                            f"no event {since} on PR #{number}: expected comment:ID or "
+                            "review:ID as shown by show-pr, or none")
                     since_time = times[0]
                 else:
                     since_time = max((item.time for item in activity if item.author == me),
@@ -931,7 +943,7 @@ class Forgejo(Service):
                     f"/repos/{repo}/pulls/{number}/reviews/{review['id']}/comments"):
                 if comment["id"] == comment_id:
                     return comment
-        sys.exit(f"no comment {comment_id} on PR #{number}")
+        raise GithostError(f"no comment {comment_id} on PR #{number}")
 
     def pr_comment(self, remote: Optional[str] = None, number: Optional[int] = None,
                    message: Optional[str] = None, reply_to: Optional[int] = None,
@@ -1225,7 +1237,11 @@ def main(argv: Optional[List[str]] = None, service: Optional[Type[Service]] = No
     if not fn:
         parser.error(f"{args.func} is not supported for {svc.name}")
     logger.debug(args)
-    fn(**vars(args))
+    try:
+        fn(**vars(args))
+    except GithostError as err:
+        print(err, file=sys.stderr)
+        return 1
     return 0
 
 def main_github() -> int:

@@ -111,7 +111,7 @@ class ForgejoPullRequestTest(unittest.TestCase):
 
     def test_repo_path_rejects_remote_on_other_host(self, check_output):
         del check_output
-        with self.assertRaises(SystemExit):
+        with self.assertRaises(githost.GithostError):
             self.service.repo_path("origin")
 
     def test_pr_list(self, check_output):
@@ -227,7 +227,7 @@ class ForgejoPullRequestTest(unittest.TestCase):
     @mock.patch("subprocess.run", return_value=mock.Mock(returncode=1))
     def test_repo_publish_without_branch_exits_before_any_request(self, run, check_output):
         del run, check_output
-        with self.assertRaises(SystemExit):
+        with self.assertRaises(githost.GithostError):
             self.service.repo_publish("proj", branch="nope")
         self.assertEqual(self.sent(), [])
 
@@ -296,7 +296,7 @@ A few things.
     def test_pr_number_without_open_pr_exits(self, check_output):
         del check_output
         self.send.return_value = fake_response([])
-        with self.assertRaises(SystemExit):
+        with self.assertRaises(githost.GithostError):
             self.service.pr_number("alice/proj", None)
 
     def test_pr_number_matches_head_commit_on_detached_head(self, check_output):
@@ -322,9 +322,9 @@ A few things.
         self.send.return_value = fake_response([
             {"number": 1, "head": {"ref": "feature", "sha": "x"}},
             {"number": 2, "head": {"ref": "other", "sha": "abc123"}}])
-        with self.assertRaises(SystemExit) as ctx:
+        with self.assertRaises(githost.GithostError) as ctx:
             self.service.pr_number("alice/proj", None)
-        self.assertIn("#1, #2", ctx.exception.code)
+        self.assertIn("#1, #2", str(ctx.exception))
 
     def test_pr_comment_reply_quotes_inline_comment(self, check_output):
         del check_output
@@ -346,9 +346,9 @@ A few things.
     def test_pr_comment_reply_to_unknown_comment_exits(self, check_output):
         del check_output
         self.send.side_effect = [fake_response([]), fake_response([])]
-        with self.assertRaises(SystemExit) as ctx:
+        with self.assertRaises(githost.GithostError) as ctx:
             self.service.pr_comment(number=7, message="x", reply_to=99)
-        self.assertEqual(ctx.exception.code, "no comment 99 on PR #7")
+        self.assertEqual(str(ctx.exception), "no comment 99 on PR #7")
 
     def test_pr_edit_appends_to_description(self, check_output):
         del check_output
@@ -504,9 +504,9 @@ A few things.
         self.send.side_effect = [fake_response({"login": "alice"}),
                                  fake_response({"state": "open", "created_at": "2026-01-01T00:00:00Z"}),
                                  fake_response([]), fake_response([])]
-        with self.assertRaises(SystemExit) as ctx:
+        with self.assertRaises(githost.GithostError) as ctx:
             self.service.pr_wait(number=7, since="review:99")
-        self.assertIn("no event review:99", ctx.exception.code)
+        self.assertIn("no event review:99", str(ctx.exception))
 
     @mock.patch("time.sleep")
     def test_pr_wait_retries_network_errors(self, sleep, check_output):

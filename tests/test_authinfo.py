@@ -43,10 +43,10 @@ class AuthinfoTest(unittest.TestCase):
         service = githost.Github(githost.Auth(user="claude", passwd=None, authinfo=authinfo))
         with mock.patch("sys.stdin.isatty", return_value=False), \
              mock.patch("getpass.getpass") as getpass:
-            with self.assertRaises(SystemExit) as ctx:
+            with self.assertRaises(githost.GithostError) as ctx:
                 service.password()
         getpass.assert_not_called()
-        self.assertIn("login claude at api.github.com", str(ctx.exception.code))
+        self.assertIn("login claude at api.github.com", str(ctx.exception))
 
     def test_no_does_not_write_token(self):
         self.assertIsNone(self.prompt_password("1"))
@@ -176,13 +176,13 @@ class RemoveAuthinfoTest(unittest.TestCase):
             self.assertEqual(self.remove(contents, "claude", "typed-tok"), contents)
 
     def test_several_lines_for_the_login_exit(self):
-        with self.assertRaises(SystemExit):
+        with self.assertRaises(githost.GithostError):
             self.remove("machine localhost login claude password c-tok\n"
                         "machine localhost login claude password other-tok\n",
                         "claude", "c-tok")
 
     def test_line_with_another_token_exits(self):
-        with self.assertRaises(SystemExit):
+        with self.assertRaises(githost.GithostError):
             self.remove("machine localhost login claude password other-tok\n",
                         "claude", "c-tok")
 

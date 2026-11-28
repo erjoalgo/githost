@@ -115,6 +115,14 @@ class ServiceCommandTest(unittest.TestCase):
         for old_name in ["key-post", "repo-list", "repo-create"]:
             self.assertNotIn(old_name, github)
 
+    def test_githost_error_prints_message_without_traceback(self):
+        with mock.patch.object(githost.Github, "list_repos",
+                               side_effect=githost.GithostError("fix it")), \
+             mock.patch("sys.stderr", new_callable=io.StringIO) as err:
+            self.assertEqual(
+                githost.main(["-u", "alice", "ls"], service=githost.Github), 1)
+        self.assertEqual(err.getvalue(), "fix it\n")
+
     def test_unsupported_command_is_rejected_by_parser(self):
         with mock.patch("sys.stderr", new_callable=io.StringIO) as err, \
              self.assertRaises(SystemExit) as ctx:
