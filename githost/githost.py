@@ -35,6 +35,12 @@ try:
 except Exception:
     __version__ = f"unknown: {traceback.format_exc()}"
 
+class GithostError(Exception):
+    """A problem for the user to fix, such as a missing branch or an ambiguous PR.
+
+    main() prints its message and exits with status 1, without a traceback."""
+
+
 def interactive_edit(initial_contents: str) -> str:
     """Open an editor to interactively edit a text template."""
     tmp = os.path.expanduser("~/.githost.tmp")
@@ -1225,7 +1231,11 @@ def main(argv: Optional[List[str]] = None, service: Optional[Type[Service]] = No
     if not fn:
         parser.error(f"{args.func} is not supported for {svc.name}")
     logger.debug(args)
-    fn(**vars(args))
+    try:
+        fn(**vars(args))
+    except GithostError as err:
+        print(err, file=sys.stderr)
+        return 1
     return 0
 
 def main_github() -> int:
