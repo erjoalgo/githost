@@ -19,7 +19,8 @@ class AuthinfoTest(unittest.TestCase):
         tmpdir = tempfile.TemporaryDirectory()
         self.addCleanup(tmpdir.cleanup)
         authinfo = os.path.join(tmpdir.name, "authinfo")
-        service = githost.Github(githost.Auth(user="alice", passwd=None, authinfo=authinfo))
+        service = githost.Github(
+            githost.Auth(user="alice", passwd=None, authinfo=authinfo))
         with mock.patch("getpass.getpass", return_value="tok"), \
              mock.patch("sys.stdin.isatty", return_value=True), \
              mock.patch("builtins.input", return_value=answer), \
@@ -40,7 +41,8 @@ class AuthinfoTest(unittest.TestCase):
         authinfo = os.path.join(tmpdir.name, "authinfo")
         with open(authinfo, "w") as fh:
             fh.write("machine api.github.com login alice password tok\n")
-        service = githost.Github(githost.Auth(user="claude", passwd=None, authinfo=authinfo))
+        service = githost.Github(
+            githost.Auth(user="claude", passwd=None, authinfo=authinfo))
         with mock.patch("sys.stdin.isatty", return_value=False), \
              mock.patch("getpass.getpass") as getpass:
             with self.assertRaises(githost.GithostError) as ctx:
@@ -63,7 +65,8 @@ class ReadAuthinfoTest(unittest.TestCase):
         with open(authinfo, "w") as fh:
             fh.write("machine localhost login claude password claude-tok\n"
                      "machine localhost login alice password alice-tok\n")
-        service = githost.Forgejo(githost.Auth(user=user, passwd=None, authinfo=authinfo))
+        service = githost.Forgejo(
+            githost.Auth(user=user, passwd=None, authinfo=authinfo))
         with mock.patch("sys.stdout", new_callable=io.StringIO):
             service.read_authinfo()
         return service.auth.user, service.auth.passwd
