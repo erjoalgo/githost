@@ -183,6 +183,57 @@ class Service:
         assert self.auth.passwd is not None
         return self.auth.passwd
 
+    def token_test_path(self) -> str:
+        """An endpoint under base that any valid token can read.
+
+        Tells a dead token apart from one lacking permission for a particular request.
+        All four services serve the authenticated user here."""
+        return "/user"
+
+    def forget_rejected_token(self) -> bool:
+        """Offer to forget a token the service rejected, from memory and authinfo.
+
+        Returns whether it was forgotten, so the next req_auth prompts for a new one."""
+        if not sys.stdin.isatty():
+            return False
+        check = requests.Request("GET", self.base + self.token_test_path())
+        self.req_auth(check)
+        if requests.Session().send(check.prepare()).status_code != 401:
+            return False
+        print(f"{self.display_name} rejected the token for {self.user()} "
+              f"at {self.api_host()}")
+        if read_choice(["yes", "no"],
+                       prompt="clear the likely expired token? ") != "yes":
+            return False
+        self.remove_authinfo()
+        self.auth.passwd = None
+        return True
+
+    def remove_authinfo(self) -> None:
+        """Drop this login's token line from the user's authinfo, if any."""
+        authinfo = self.auth.authinfo
+        if not authinfo or not os.path.exists(authinfo):
+            return
+        prefix = f"machine {self.api_host()} login {self.user()} password "
+        with open(authinfo, "r") as fh:
+            lines = fh.read().splitlines()
+        login_lines = [line for line in lines if line.startswith(prefix)]
+        if not login_lines:
+            # the token was typed in, not read from authinfo
+            logger.warning("no line for login %s at %s in %s to remove",
+                           self.user(), self.api_host(), authinfo)
+            return
+        if len(login_lines) > 1:
+            sys.exit(f"{len(login_lines)} lines for login {self.user()} "
+                     f"at {self.api_host()} in {authinfo}; "
+                     "remove the rejected one by hand")
+        if login_lines[0] != prefix + str(self.auth.passwd):
+            sys.exit(f"the line for login {self.user()} at {self.api_host()} "
+                     f"in {authinfo} no longer holds the rejected token; "
+                     "check it by hand")
+        with open(authinfo, "w") as fh:
+            fh.writelines(line + "\n" for line in lines if not line.startswith(prefix))
+
     def req_auth(self, req: requests.Request, prompt: Optional[str] = None) -> None:
         """Fill in the request's authentication details."""
         kwargs = {"prompt": prompt} if prompt else {}
@@ -208,6 +259,9 @@ class Service:
             self.req_auth(req)
         logger.debug("%s %s:\n%s\n%s\n%s", req.method, req.url, req.json, req.data, req.params)
         resp = requests.Session().send(req.prepare())
+        if resp.status_code == 401 and add_auth and self.forget_rejected_token():
+            self.req_auth(req)
+            resp = requests.Session().send(req.prepare())
         if missing_ok and resp.status_code == 404:
             return None
         if not resp.ok:
