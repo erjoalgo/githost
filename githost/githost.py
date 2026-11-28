@@ -191,7 +191,7 @@ class Service:
         return "/user"
 
     def forget_rejected_token(self) -> bool:
-        """After the service rejected the token, offer to forget it from memory and authinfo.
+        """Offer to forget a token the service rejected, from memory and authinfo.
 
         Returns whether it was forgotten, so the next req_auth prompts for a new one."""
         if not sys.stdin.isatty():
@@ -200,8 +200,10 @@ class Service:
         self.req_auth(check)
         if requests.Session().send(check.prepare()).status_code != 401:
             return False
-        print(f"{self.display_name} rejected the token for {self.user()} at {self.api_host()}")
-        if read_choice(["yes", "no"], prompt="clear the likely expired token? ") != "yes":
+        print(f"{self.display_name} rejected the token for {self.user()} "
+              f"at {self.api_host()}")
+        if read_choice(["yes", "no"],
+                       prompt="clear the likely expired token? ") != "yes":
             return False
         self.remove_authinfo()
         self.auth.passwd = None
@@ -222,11 +224,13 @@ class Service:
                            self.user(), self.api_host(), authinfo)
             return
         if len(login_lines) > 1:
-            sys.exit(f"{len(login_lines)} lines for login {self.user()} at {self.api_host()} "
-                     f"in {authinfo}; remove the rejected one by hand")
+            sys.exit(f"{len(login_lines)} lines for login {self.user()} "
+                     f"at {self.api_host()} in {authinfo}; "
+                     "remove the rejected one by hand")
         if login_lines[0] != prefix + str(self.auth.passwd):
-            sys.exit(f"the line for login {self.user()} at {self.api_host()} in {authinfo} "
-                     "no longer holds the rejected token; check it by hand")
+            sys.exit(f"the line for login {self.user()} at {self.api_host()} "
+                     f"in {authinfo} no longer holds the rejected token; "
+                     "check it by hand")
         with open(authinfo, "w") as fh:
             fh.writelines(line + "\n" for line in lines if not line.startswith(prefix))
 
